@@ -1,0 +1,90 @@
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:@localhost:3306/zamzam"
+}
+
+// ✅ Menu Item Model
+model MenuItem {
+  id          Int       @id @default(autoincrement())
+  description String?   // optional
+  name        String
+  price       Float
+  image       String
+  category    String
+  isAvailable Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  orders      OrderItem[]
+}
+
+// ✅ User Model
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String    @unique
+  email     String    @unique
+  password  String
+  role      Role
+  firstName String
+  lastName  String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  orders    Order[]   @relation("WaiterOrders")
+}
+
+enum Role {
+  waiter
+  chef
+  admin
+}
+
+// ✅ Order Item Model
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  name       String
+  price      Float
+  quantity   Int
+  totalPrice Float
+  status     OrderStatus
+  chefRemarks String?
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id])
+}
+
+enum OrderStatus {
+  pending
+  preparing
+  ready
+}
+
+// ✅ Order Model
+model Order {
+  id          Int         @id @default(autoincrement())
+  orderNumber String      
+  waiterId    Int
+  waiter      User        @relation("WaiterOrders", fields: [waiterId], references: [id])
+  items       OrderItem[]
+  totalAmount Float
+  status      OrderProgress
+  tableNumber Int?
+  notes       String?
+  cashCollected Boolean @default(true)
+  chefRemarks String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum OrderProgress {
+  pending
+  preparing
+  ready
+  completed
+  cancelled
+}
