@@ -198,7 +198,6 @@ const Menu: React.FC = () => {
 
   return (
     <>
-      <Header navigate={navigate}/>
       <Toasts toasts={toasts} onClose={remove} />
 
       <div className="container mx-auto px-4 py-6">
