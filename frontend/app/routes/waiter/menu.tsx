@@ -162,7 +162,7 @@ const Menu: React.FC = () => {
   const addItemById = () => {
     if (previewItem) {
       addOrderItem(
-        previewItem.id.toString(),
+        previewItem.id,
         itemQuantity,
         previewItem.name,
         previewItem.price,
@@ -181,7 +181,7 @@ const Menu: React.FC = () => {
 
   const placeOrder = async () => {
     setPlacing(true);
-
+    console.log(orderItems)
     try {
       await ordersAPI.create({ items: orderItems, tableNumber, notes: "" });
       clearOrder();

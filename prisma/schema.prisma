@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql://root:@localhost:3306/zamzam"
+  url      = "mysql://root:@localhost:3306/zamzam1"
 }
 
 // ✅ Menu Item Model
@@ -26,11 +26,8 @@ model MenuItem {
 model User {
   id        Int       @id @default(autoincrement())
   username  String    @unique
-  email     String    @unique
   password  String
   role      Role
-  firstName String
-  lastName  String
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

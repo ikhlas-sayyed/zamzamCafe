@@ -5,12 +5,12 @@ const Header = ({ currentPage='' ,navigate}) => (
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Cafe Zam Zam</h1>
-          <p className="text-blue-100 text-sm">Waiter Interface</p>
+          <p className="text-blue-100 text-sm">Chef Interface</p>
         </div>
         <div className="flex items-center space-x-4">
           <button
             
-             onClick={() => navigate('/waiter/orders')}
+             onClick={() => navigate('/chef')}
             className={`backdrop-blur-sm rounded-lg px-4 py-2 transition-all duration-300 flex items-center space-x-2 ${
               currentPage === 'orders' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'
             }`}
@@ -19,7 +19,7 @@ const Header = ({ currentPage='' ,navigate}) => (
             <span>Orders</span>
           </button>
           <button
-           onClick={() => navigate('/waiter')}
+           onClick={() => navigate('/chef/menu')}
             className={`rounded-lg px-4 py-2 transition-all duration-300 flex items-center space-x-2 ${
               currentPage === 'new-order' 
                 ? 'bg-green-600' 
@@ -27,7 +27,7 @@ const Header = ({ currentPage='' ,navigate}) => (
             }`}
           >
             {/* <Plus className="w-5 h-5" /> */}
-            <span>New Order</span>
+            <span>Menu</span>
           </button>
         </div>
       </div>

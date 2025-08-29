@@ -329,7 +329,6 @@ router.post('/', authenticateToken, authorizeRole(['waiter', 'admin']), validate
   // Validate menu items and calculate totals
   const orderItems = [];
   let totalAmount = 0;
-
   for (const item of items) {
     const menuItem = await prisma.menuItem.findFirst({ where: { id: item.menuItemId } });
     if (!menuItem) {
@@ -363,7 +362,7 @@ router.post('/', authenticateToken, authorizeRole(['waiter', 'admin']), validate
       totalAmount,
       tableNumber: tableNumber || 0,
       orderNumber,
-      cashCollected,
+      // cashCollected,
       notes,
       items: {
         create: orderItems

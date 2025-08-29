@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { ordersAPI } from "~/services/api"; // your axios wrapper file
 import type { Order, OrderItem } from "~/types";
+import Header from "./header";
+import { useNavigate } from "react-router";
 
 const SOCKET_URL = "http://localhost:3000"; // same as your API base
 
@@ -343,8 +345,10 @@ export default function ChefDashboard() {
   const toggleExpand = (id: Id) => setExpandedOrderId((prev) => (prev === id ? null : id));
 
   // ---- Render ----
+  const navigate=useNavigate()
   return (
     <div className="min-h-screen bg-gray-50">
+      <Header navigate={navigate}/>
       {/* Toasts container */}
       <div className="fixed top-6 right-6 z-50 flex flex-col gap-3">
         {toasts.map((t) => (
@@ -375,23 +379,7 @@ export default function ChefDashboard() {
         ))}
       </div>
 
-      {/* Header */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <ChefHat className="w-8 h-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Chef Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Clock className="w-4 h-4" />
-                <span>Live Kitchen View</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Body */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

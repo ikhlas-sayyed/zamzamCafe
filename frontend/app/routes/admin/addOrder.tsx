@@ -6,10 +6,10 @@ import { Input } from "~/components/ui/input";
 import api, { menuAPI, ordersAPI } from "~/services/api";
 import type { MenuItem } from "~/types";
 import MenuItems from "~/components/waiter/MenuItem";
-import Header from "~/components/waiter/Header";
+import Header from "~/routes/admin/Header";
 import CurrentOrderItem from "~/components/waiter/CurrentOrderItem";
 import { io, type Socket } from "socket.io-client";
-
+import { useNavigate } from "react-router";
 
 interface orderItems {
   menuItemId: string;
@@ -162,7 +162,7 @@ const Menu: React.FC = () => {
   const addItemById = () => {
     if (previewItem) {
       addOrderItem(
-        previewItem.id.toString(),
+        previewItem.id,
         itemQuantity,
         previewItem.name,
         previewItem.price,
@@ -181,7 +181,7 @@ const Menu: React.FC = () => {
 
   const placeOrder = async () => {
     setPlacing(true);
-
+    console.log(orderItems)
     try {
       await ordersAPI.create({ items: orderItems, tableNumber, notes: "" });
       clearOrder();
@@ -194,9 +194,11 @@ const Menu: React.FC = () => {
     }
   };
 
+  const navigate=useNavigate()
 
   return (
     <>
+      <Header navigate={navigate}/>
       <Toasts toasts={toasts} onClose={remove} />
 
       <div className="container mx-auto px-4 py-6">

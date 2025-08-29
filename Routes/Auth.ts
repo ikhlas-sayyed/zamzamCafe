@@ -1,15 +1,13 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
-import User from '../utils/db/Models/User';
-import type { IUser } from '../utils/db/Models/User';
 import { PrismaClient } from "@prisma/client";
-import { authenticateToken, asyncHandler } from '../utils/middleware';
+import { authenticateToken, asyncHandler, authorizeRole } from '../utils/middleware';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Validation middleware
+// ✅ Validation middleware
 const validateLogin = [
   body('username').notEmpty().withMessage('Username is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
@@ -17,16 +15,12 @@ const validateLogin = [
 
 const validateRegister = [
   body('username').notEmpty().withMessage('Username is required'),
-  body('email').isEmail().withMessage('Please enter a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
-  body('firstName').notEmpty().withMessage('First name is required'),
-  body('lastName').notEmpty().withMessage('Last name is required'),
   body('role').isIn(['waiter', 'chef', 'admin']).withMessage('Invalid role'),
 ];
 
-// Login route
-router.post('/login',  asyncHandler(async (req: express.Request, res: express.Response) => {
-  console.log(req.body);
+// ✅ Login route
+router.post('/login', asyncHandler(async (req: express.Request, res: express.Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
@@ -34,30 +28,22 @@ router.post('/login',  asyncHandler(async (req: express.Request, res: express.Re
 
   const { username, password } = req.body;
 
-  // Find user by username
-  const user=await prisma.user.findUnique({
-    where:{username,password}
+  // Check user
+  const user = await prisma.user.findUnique({
+    where: { username },
   });
-  // const user = await User.findOne({ username, password });
-  console.log(user);
-  if (!user) {
+
+  if (!user || user.password !== password) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  // Check password
-  const isPasswordValid =  user.password===password;
-  if (!isPasswordValid) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  // Generate JWT token
+  // Generate JWT
   const secret = process.env.JWT_SECRET || 'your-secret-key';
   const token = jwt.sign(
-    { 
-      userId: user.id, 
-      username: user.username, 
+    {
+      userId: user.id,
+      username: user.username,
       role: user.role,
-      email: user.email 
     },
     secret,
     { expiresIn: '24h' }
@@ -68,56 +54,35 @@ router.post('/login',  asyncHandler(async (req: express.Request, res: express.Re
     user: {
       id: user.id,
       username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
       role: user.role,
     },
     token,
   });
 }));
 
-// Register route
-router.post('/register', validateRegister, asyncHandler(async (req: express.Request, res: express.Response) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+// ✅ Register route (only username, password, role)
+router.post('/register', asyncHandler(async (req: express.Request, res: express.Response) => {
 
-  const { username, email, password, firstName, lastName, role } = req.body;
-
-  // Check if user already exists
+  const { username, password, role } = req.body;
+  console.log(req.body)
+  // Check if user exists
   const existingUser = await prisma.user.findUnique({
-    where :{username}
-  })
-  
+    where: { username },
+  });
+
   if (existingUser) {
-    return res.status(400).json({ 
-      error: 'Username or email already exists' 
-    });
+    return res.status(400).json({ error: 'Username already exists' });
   }
 
-  // Create new user
+  // Create user
   const user = await prisma.user.create({
-    data:{
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    role: role || 'waiter'
-  }
-});
+    data: { username, password, role },
+  });
 
-  // Generate JWT token
+  // Generate JWT
   const secret = process.env.JWT_SECRET || 'your-secret-key';
   const token = jwt.sign(
-    { 
-      userId: user.id, 
-      username: user.username, 
-      role: user.role,
-      email: user.email 
-    },
+    { userId: user.id, username: user.username, role: user.role },
     secret,
     { expiresIn: '24h' }
   );
@@ -127,44 +92,61 @@ router.post('/register', validateRegister, asyncHandler(async (req: express.Requ
     user: {
       id: user.id,
       username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
       role: user.role,
     },
     token,
   });
 }));
 
-// Logout route
-router.post('/logout', (req: express.Request, res: express.Response) => {
-  // JWT tokens are stateless, so logout is handled client-side
-  res.json({
-    message: 'Logout successful',
-  });
-});
+// ✅ Delete user (admin only)
+router.post('/:id/delete', authenticateToken, authorizeRole(['admin']), asyncHandler(async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
 
-// Get current user route
+  try {
+    await prisma.user.delete({
+      where: { id: Number(id) },
+    });
+    res.json({ message: "User deleted successfully" });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Failed to delete user" });
+  }
+}));
+
+// ✅ Get current user
 router.get('/me', authenticateToken, asyncHandler(async (req: express.Request, res: express.Response) => {
   const user = await prisma.user.findUnique({
-    where:{id:(req as any).user.id},
-    select:{id:true,username:true,email:true,firstName:true,lastName:true,role:true}
-  })
-  
+    where: { id: (req as any).user.id },
+    select: { id: true, username: true, role: true },
+  });
+
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  res.json({
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-    },
-  });
+  res.json({ user });
 }));
+
+// ✅ Get all users (admin only)
+router.get(
+  '/all',
+  authenticateToken,
+  authorizeRole(['admin']),
+  asyncHandler(async (req: express.Request, res: express.Response) => {
+    const user = (req as any).user; // contains userId from JWT
+    
+    const users = await prisma.user.findMany({
+      where: {
+        id: {
+          not: user.userId, // exclude logged-in user
+        },
+      },
+      select: { id: true, username: true, role: true },
+    });
+
+    res.json({ users });
+  })
+);
+
 
 export default router;

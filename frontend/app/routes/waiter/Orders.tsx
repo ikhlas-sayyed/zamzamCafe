@@ -166,6 +166,7 @@ export function OrdersPage({
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
+                      disabled={order.status==='cancelled' || order.status==='completed'}
                       onClick={()=>{updateOrder(order.id,'cancelled')}}
                       size="sm"
                       className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
@@ -174,6 +175,7 @@ export function OrdersPage({
                     </Button>
                     <Button
                       variant="outline"
+                      disabled={order.status==='cancelled' || order.status==='completed'}
                       size="sm"
                       onClick={()=>{updateOrder(order.id,'completed')}}
                       className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
@@ -524,7 +526,7 @@ export function OrderDetailPage({
                       variant="outline"
                       onClick={() => updateQty(item.id as number, -1, i)}
                       className="h-10 w-10 rounded-full hover:bg-red-50 hover:border-red-200"
-                      disabled={(qty ?? 1) <= 1}
+                      disabled={((qty ?? 1) <= 1)&&(order.status==='cancelled' || order.status==='completed')}
                     >
                       <Minus className="w-4 h-4" />
                     </Button>
@@ -534,6 +536,7 @@ export function OrderDetailPage({
                     <Button
                       size="icon"
                       variant="outline"
+                      disabled={order.status==='cancelled' || order.status==='completed'}
                       onClick={() => updateQty(item.id as number, 1, i)}
                       className="h-10 w-10 rounded-full hover:bg-green-50 hover:border-green-200"
                     >
@@ -558,12 +561,14 @@ export function OrderDetailPage({
               <Button
                 variant="outline"
                 onClick={()=>{updateOrder(order.id,'cancelled')}}
+                disabled={order.status==='cancelled' || order.status==='completed'}
                 className="text-red-600 border-red-200 hover:bg-red-50 px-6"
               >
                 <XCircle className="w-4 h-4 mr-2" /> Cancel
               </Button>
               <Button
                 variant="outline"
+                disabled={order.status==='cancelled' || order.status==='completed'}
                 onClick={()=>{updateOrder(order.id,'completed')}}
                 className="text-green-600 border-green-200 hover:bg-green-50 px-6"
               >
@@ -580,6 +585,7 @@ export function OrderDetailPage({
                             <Button
                 variant="outline"
                 onClick={()=>{OpenModel(true)}}
+                disabled={order.status==='cancelled' || order.status==='completed'}
                 className="text-green-600 border-green-200 hover:bg-green-50 px-6"
               >
            add new item

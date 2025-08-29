@@ -5,7 +5,7 @@ import { Input } from '~/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select';
 import { X, Trash2 } from 'lucide-react';
 import { menuAPI } from '~/services/api';
-import Header from './Header';
+import Header from './header';
 import { useNavigate } from 'react-router';
 
 export default function MenuManagement() {
@@ -21,7 +21,7 @@ export default function MenuManagement() {
   // Fetch menu items
   const fetchMenuItems = async () => {
     try {
-      const items = await menuAPI.getAdmin();
+      const items = await menuAPI.getAll();
       setMenuItems(items);
     } catch (error) {
       console.error(error);
@@ -33,24 +33,6 @@ export default function MenuManagement() {
   }, []);
 
   // Add new item
-  const handleAddItem = async () => {
-    try {
-      const formData = new FormData();
-      formData.append('name', newItem.name);
-      formData.append('price', newItem.price);
-      formData.append('category', newItem.category);
-      if (newItem.image) {
-        formData.append('image', newItem.image);
-      }
-
-      const added = await menuAPI.create(formData);
-      setMenuItems(prev => [...prev, added]);
-      setNewItem({ name: '', price: '', category: '', image: null });
-      setShowModal(false);
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   // Toggle availability
   const toggleStock = async (id: number) => {
@@ -62,23 +44,13 @@ export default function MenuManagement() {
     }
   };
 
-  // Delete item
-  const deleteItem = async (id: number) => {
-    try {
-      await menuAPI.delete(id.toString());
-      setMenuItems(prev => prev.filter(item => item.id !== id));
-    } catch (error) {
-      console.error(error);
-    }
-  };
   const navigate=useNavigate()
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div>
     <Header navigate={navigate}/>
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">🍔 Menu Management</h1>
-        <Button onClick={() => setShowModal(true)}>Add Item</Button>
       </div>
 
       {/* Menu Items Grid */}
@@ -96,9 +68,6 @@ export default function MenuManagement() {
               <div className="flex gap-2 mt-3">
                 <Button size="sm" onClick={() => toggleStock(item.id)}>
                   {item.isAvailable ? 'Mark Out of Stock' : 'Mark In Stock'}
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => deleteItem(item.id)}>
-                  <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
             </CardContent>
@@ -130,10 +99,6 @@ export default function MenuManagement() {
                   <SelectItem value="Drink">Drink</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-                <Button onClick={handleAddItem}>Add Item</Button>
-              </div>
             </div>
           </div>
         </div>

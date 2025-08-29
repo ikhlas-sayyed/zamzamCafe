@@ -24,6 +24,12 @@ export default function Header({navigate}:{navigate:(agr0:string)=>void}) {
             <PlusCircle className="w-5 h-5" />
             Add Orders
           </button>
+          <button 
+          onClick={()=>{navigate('/admin/users')}}
+          className="flex items-center gap-2 text-gray-700 hover:text-blue-600">
+            <PlusCircle className="w-5 h-5" />
+            Users
+          </button>
         <button
         onClick={()=>{navigate('/admin/insights')}} 
         className="flex items-center gap-2 text-gray-700 hover:text-blue-600">
