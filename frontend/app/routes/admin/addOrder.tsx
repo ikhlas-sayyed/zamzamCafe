@@ -6,7 +6,6 @@ import { Input } from "~/components/ui/input";
 import api, { menuAPI, ordersAPI } from "~/services/api";
 import type { MenuItem } from "~/types";
 import MenuItems from "~/components/waiter/MenuItem";
-import Header from "~/routes/admin/Header";
 import CurrentOrderItem from "~/components/waiter/CurrentOrderItem";
 import { io, type Socket } from "socket.io-client";
 import { useNavigate } from "react-router";
