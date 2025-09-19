@@ -51,17 +51,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
 
 // CORS configuration
 app.use(cors({
@@ -89,7 +78,21 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// serve images from /uploads folder
+app.use('/uploads', express.static('uploads', {
+  setHeaders: (res, path, stat) => {
+    // Allow any origin to load images
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // Optional: prevent caching issues
+    res.setHeader('Cache-Control', 'no-cache');
+
+    // Optional: set proper content type if needed
+    // res.setHeader('Content-Type', 'image/jpeg');
+  }
+}));
+
+
 
 
 // Health check endpoint

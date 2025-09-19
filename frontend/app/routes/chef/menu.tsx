@@ -4,7 +4,7 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select';
 import { X, Trash2 } from 'lucide-react';
-import { menuAPI } from '~/services/api';
+import api,{ menuAPI } from '~/services/api';
 import Header from './header';
 import { useNavigate } from 'react-router';
 
@@ -58,7 +58,7 @@ export default function MenuManagement() {
         {menuItems.map(item => (
           <Card key={item.id} className="relative">
             <CardContent>
-              <img src={item.image} alt={item.name} className="w-full h-40 object-cover rounded-md mb-4" />
+              <img src={api.defaults.baseURL+item.image} crossOrigin="anonymous" className="w-full h-40 object-cover rounded-md mb-4" />
               <h3 className="font-bold text-lg">{item.name}</h3>
               <p className="text-sm text-gray-600">Category: {item.category}</p>
               <p className="text-sm text-gray-600">Price: ${item.price.toFixed(2)}</p>

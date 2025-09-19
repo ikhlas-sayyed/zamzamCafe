@@ -46,7 +46,7 @@ router.post('/login', asyncHandler(async (req: express.Request, res: express.Res
       role: user.role,
     },
     secret,
-    { expiresIn: '24h' }
+    { expiresIn: '356d' }
   );
 
   res.json({

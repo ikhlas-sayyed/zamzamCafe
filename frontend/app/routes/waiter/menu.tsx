@@ -84,7 +84,7 @@ const Menu: React.FC = () => {
         setMenu(data);
 
         const user = JSON.parse(localStorage.getItem("user") as string);
-        setWaiterId(user.id);
+        setWaiterId(user.itemNumber);
       } catch (error) {
         console.error("Failed to load menu:", error);
       }
@@ -147,7 +147,7 @@ const Menu: React.FC = () => {
 
   const previewItem = useMemo(() => {
     if (!current_itemId) return null;
-    return menu.find((obj) => obj.id === Number(current_itemId)) ?? null;
+    return menu.find((obj) => obj.itemNumber === Number(current_itemId)) ?? null;
   }, [menu, current_itemId]);
 
   const currentOrderTotal = useMemo(
@@ -163,10 +163,11 @@ const Menu: React.FC = () => {
     if (previewItem) {
       addOrderItem(
         previewItem.id,
+        // previewItem.itemNumber,
         itemQuantity,
         previewItem.name,
         previewItem.price,
-        previewItem.image
+        previewItem.image,
       );
     }
   };
@@ -281,7 +282,7 @@ const Menu: React.FC = () => {
                 <div className="mt-4">
                   <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
                     <img
-                      src={previewItem.image}
+                      src={api.defaults.baseURL+previewItem.image} crossOrigin="anonymous"
                       alt={previewItem.name}
                       className="w-16 h-16 object-cover rounded"
                     />
@@ -324,7 +325,7 @@ const Menu: React.FC = () => {
                   disabled={placing}
                   className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
                 >
-                  Submit Order
+                   {placing ? "Submitting.. Order" : "Submit Order"}
                 </button>
               </div>
             </div>

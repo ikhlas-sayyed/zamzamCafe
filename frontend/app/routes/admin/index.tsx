@@ -267,7 +267,7 @@ const AdminDashboard = () => {
             <tbody>
               {filteredOrders.map(order => (
                 <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="border p-2">#{order.id}</td>
+                  <td className="border p-2">#{order.orderNumber} T:{order.tableNumber}</td>
                   <td className="border p-2">{order.waiterId}</td>
                   <td className="border p-2">{order.items.length}</td>
                   <td className="border p-2">₹{calculateTotal(order.items)}</td>

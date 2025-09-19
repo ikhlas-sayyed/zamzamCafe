@@ -35,6 +35,7 @@ const upload = multer({
 
 // Validation middleware
 const validateMenuItem = [
+  body('id').isInt({ min: 0 }).withMessage("id must be a positive number"),
   body('name').notEmpty().withMessage('Name is required'),
   body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
   body('category').notEmpty().withMessage('Category is required'),
@@ -44,7 +45,7 @@ const validateMenuItem = [
 router.get('/', asyncHandler(async (req: express.Request, res: express.Response) => {
   console.log(req.query)
   const menuItems = await prisma.menuItem.findMany({
-    where: { isAvailable: true }
+      where: { isAvailable: true,deleted:false }
   })
   console.log(menuItems)
   res.json({
@@ -56,7 +57,7 @@ router.get('/', asyncHandler(async (req: express.Request, res: express.Response)
 // Get all menu items (admin only - includes unavailable items)
 router.get('/admin', authenticateToken, authorizeRole(['admin']), asyncHandler(async (req: express.Request, res: express.Response) => {
   const menuItems = await prisma.menuItem.findMany({
-    where: { isAvailable: true }
+    where: { isAvailable: true,deleted:false }
   })
 
   res.json({
@@ -97,18 +98,27 @@ router.post('/',
       return res.status(400).json({ error: 'Image is required' });
     }
 
-    const { name, description, price, category } = req.body;
+    const { name, description, price, category, id } = req.body;
+
+    const exists = await prisma.menuItem.findFirst({
+      where: { itemNumber: parseInt(id as string) }
+    });
+
+    if (exists) {
+      return res.status(400).json({ error: "ID already exists" });
+    }
 
     const menuItem = await prisma.menuItem.create({
       data: {
+        itemNumber: parseInt(id as string),
         name,
         description,
         price: parseFloat(price),
         category,
         image: `/uploads/${req.file.filename}`,
-        updatedAt: new Date()
       }
     });
+
 
     res.status(201).json({
       success: true,
@@ -168,8 +178,9 @@ router.delete('/:id',
   authenticateToken,
   authorizeRole(['admin']),
   asyncHandler(async (req: express.Request, res: express.Response) => {
-    const menuItem = await prisma.menuItem.delete({
-      where: { id: parseInt(req.params.id as string) }
+    const menuItem = await prisma.menuItem.update({
+      where: { id: parseInt(req.params.id as string) },
+      data:{itemNumber:-1,deleted:true}
     })
 
     if (!menuItem) {

@@ -38,7 +38,7 @@ export function LoginForm({
   try {
     const response = await authAPI.login(data);
 
-    alert(response.user.role);
+    // alert(response.user.role);
     login(response.user, response.token);
     toast.success(`Welcome back, ${response.user.firstName}!`);
 

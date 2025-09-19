@@ -12,6 +12,7 @@ export interface User {
 }
 
 export interface MenuItem {
+  itemNumber: number
   id: number
   name: string
   description?: string

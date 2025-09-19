@@ -1,8 +1,6 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
+import Header from "./Header";
 import api, { menuAPI, ordersAPI } from "~/services/api";
 import type { MenuItem } from "~/types";
 import MenuItems from "~/components/waiter/MenuItem";
@@ -83,7 +81,7 @@ const Menu: React.FC = () => {
         setMenu(data);
 
         const user = JSON.parse(localStorage.getItem("user") as string);
-        setWaiterId(user.id);
+        setWaiterId(user.itemNumber);
       } catch (error) {
         console.error("Failed to load menu:", error);
       }
@@ -146,7 +144,7 @@ const Menu: React.FC = () => {
 
   const previewItem = useMemo(() => {
     if (!current_itemId) return null;
-    return menu.find((obj) => obj.id === Number(current_itemId)) ?? null;
+    return menu.find((obj) => obj.itemNumber === Number(current_itemId)) ?? null;
   }, [menu, current_itemId]);
 
   const currentOrderTotal = useMemo(
@@ -162,6 +160,7 @@ const Menu: React.FC = () => {
     if (previewItem) {
       addOrderItem(
         previewItem.id,
+        // previewItem.itemNumber,
         itemQuantity,
         previewItem.name,
         previewItem.price,
@@ -193,149 +192,151 @@ const Menu: React.FC = () => {
     }
   };
 
-  const navigate=useNavigate()
+  const navigate = useNavigate()
 
   return (
     <>
-      <Toasts toasts={toasts} onClose={remove} />
+      <div className="min-h-screen flex bg-gray-100">
+        <Header navigate={navigate} />
+        <Toasts toasts={toasts} onClose={remove} />
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Order</h2>
+        <div className="container mx-auto px-4 py-6">
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Order</h2>
 
-          {/* Customer Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
-              <input
-                type="number"
-                value={tableNumber ?? ""}
-                onChange={(e) => setTableNumber(parseInt(e.target.value))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Table #"
-              />
-            </div>
-          </div>
-
-          {/* Input Method Toggle */}
-          <div className="flex space-x-4 mb-6">
-            <button
-              onClick={() => setInputMethod("menu")}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                inputMethod === "menu"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              Menu Selection
-            </button>
-            <button
-              onClick={() => setInputMethod("id")}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                inputMethod === "id"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              ID Entry
-            </button>
-          </div>
-
-          {/* ID Entry Method */}
-          {inputMethod === "id" && (
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Enter Item by ID</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
-                  <input
-                    type="number"
-                    value={current_itemId ?? ""}
-                    onChange={(e) => itemchng(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter ID (1-12)"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={itemQuantity}
-                    onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={addItemById}
-                    className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors"
-                  >
-                    Add Item
-                  </button>
-                </div>
+            {/* Customer Info */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
+                <input
+                  type="number"
+                  value={tableNumber ?? ""}
+                  onChange={(e) => setTableNumber(parseInt(e.target.value))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Table #"
+                />
               </div>
-              {previewItem && (
-                <div className="mt-4">
-                  <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
-                    <img
-                      src={previewItem.image}
-                      alt={previewItem.name}
-                      className="w-16 h-16 object-cover rounded"
+            </div>
+
+            {/* Input Method Toggle */}
+            <div className="flex space-x-4 mb-6">
+              <button
+                onClick={() => setInputMethod("menu")}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "menu"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+              >
+                Menu Selection
+              </button>
+              <button
+                onClick={() => setInputMethod("id")}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "id"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+              >
+                ID Entry
+              </button>
+            </div>
+
+            {/* ID Entry Method */}
+            {inputMethod === "id" && (
+              <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Enter Item by ID</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
+                    <input
+                      type="number"
+                      value={current_itemId ?? ""}
+                      onChange={(e) => itemchng(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter ID (1-12)"
                     />
-                    <div>
-                      <h4 className="font-semibold">{previewItem.name}</h4>
-                      <p className="text-blue-600 font-bold">₹{previewItem.price}</p>
-                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={itemQuantity}
+                      onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={addItemById}
+                      className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                    >
+                      Add Item
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Current Order */}
-          {orderItems.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Current Order</h3>
-                <button onClick={clearOrder} className="text-red-500 hover:text-red-700 font-medium">
-                  Clear All
-                </button>
+                {previewItem && (
+                  <div className="mt-4">
+                    <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
+                      <img
+                        src={api.defaults.baseURL+previewItem.image} crossOrigin="anonymous"
+                        alt={previewItem.name}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                      <div>
+                        <h4 className="font-semibold">{previewItem.name}</h4>
+                        <p className="text-blue-600 font-bold">₹{previewItem.price}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="space-y-3">
-                {orderItems.map((item, index) => (
-                  <CurrentOrderItem
-                    key={item.menuItemId}
-                    item={item}
-                    index={index}
-                    onRemove={removeFromCurrentOrder}
-                  />
+            )}
+
+            {/* Current Order */}
+            {orderItems.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-gray-800">Current Order</h3>
+                  <button onClick={clearOrder} disabled={placing} className="text-red-500 hover:text-red-700 font-medium">
+                    Clear All
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {orderItems.map((item, index) => (
+                    <CurrentOrderItem
+                      key={item.menuItemId}
+                      item={item}
+                      index={index}
+                      onRemove={removeFromCurrentOrder}
+                    />
+                  ))}
+                </div>
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex justify-between items-center text-xl font-bold">
+                    <span>Total</span>
+                    <span>₹{currentOrderTotal}</span>
+                  </div>
+                  <button
+                    onClick={placeOrder}
+                    disabled={placing}
+                    className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {placing ? "Submitting.. Order" : "Submit Order"}
+                  </button>
+
+                </div>
+              </div>
+            )}
+
+            {/* Menu Selection */}
+            {inputMethod === "menu" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                {menu.map((item) => (
+                  <MenuItems key={item.id} item={item} additems={addOrderItem} />
                 ))}
               </div>
-              <div className="border-t pt-4 mt-4">
-                <div className="flex justify-between items-center text-xl font-bold">
-                  <span>Total</span>
-                  <span>₹{currentOrderTotal}</span>
-                </div>
-                <button
-                  onClick={placeOrder}
-                  disabled={placing}
-                  className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
-                >
-                  Submit Order
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Menu Selection */}
-          {inputMethod === "menu" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-              {menu.map((item) => (
-                <MenuItems key={item.id} item={item} additems={addOrderItem} />
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </>

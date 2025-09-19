@@ -92,10 +92,11 @@ router.get(
 // GET /orders/by-date?startDate=yyyy-mm-dd&endDate=yyyy-mm-dd
 router.get(
   "/by-date",
-  authenticateToken,
   asyncHandler(async (req: express.Request, res: express.Response) => {
     const user = (req as any).user;
     const { startDate, endDate } = req.query;
+
+    console.log(startDate, endDate)
 
     if (!startDate || !endDate) {
       return res.status(400).json({ error: "startDate and endDate are required" });
@@ -103,17 +104,12 @@ router.get(
 
     const query: any = {};
 
-    if (user.role === "waiter") {
-      query.waiterId = user.userId;
-    }
-
     const start = new Date(startDate as string);
     const end = new Date(endDate as string);
     end.setHours(23, 59, 59, 999);
 
     const orders = await prisma.order.findMany({
       where: {
-        ...(query.waiterId && { waiterId: query.waiterId }),
         createdAt: { gte: start, lte: end },
       },
       include: { items: true },
@@ -131,24 +127,21 @@ router.get(
 
 router.get(
   "/insights",
-  authenticateToken,
+  // authenticateToken,
   asyncHandler(async (req: express.Request, res: express.Response) => {
-    const user = (req as any).user;
 
     const query: any = {};
-    console.log(query)
-    if (user.role === "waiter") {
-      query.waiterId = user.userId;
-    }
+    // console.log(query,1)
 
     // Optional date filter from query params
     const { startDate, endDate } = req.query;
-    const start = startDate ? new Date(startDate as string) : startOfDay(new Date());
-    const end = endDate ? new Date(endDate as string) : endOfDay(new Date());
+    console.log(startDate, endDate, 1);
+    const start = startDate ? startOfDay(new Date(startDate as string)) : startOfDay(new Date());
+    const end = endDate ? endOfDay(new Date(endDate as string)) : endOfDay(new Date());
+
 
     const orders = await prisma.order.findMany({
       where: {
-        ...(query.waiterId && { waiterId: query.waiterId }),
         createdAt: { gte: start, lte: end },
       },
       include: { items: true, waiter: true },
@@ -352,7 +345,7 @@ router.post('/', authenticateToken, authorizeRole(['waiter', 'admin']), validate
   }
 
   // console.log(orderItems)
-  let cashCollected=false
+  let cashCollected = false
   cashCollected = user.role === "admin" ? true : false;
   const orderNumber = generateOrderNumber().toString();
   const order = await prisma.order.create({
@@ -362,7 +355,7 @@ router.post('/', authenticateToken, authorizeRole(['waiter', 'admin']), validate
       totalAmount,
       tableNumber: tableNumber || 0,
       orderNumber,
-      // cashCollected,
+      cashCollected,
       notes,
       items: {
         create: orderItems
@@ -458,7 +451,7 @@ router.patch('/:id/submitCash', authenticateToken, authorizeRole(['admin']), val
     }
   });
 
- res.json({
+  res.json({
     success: true,
     message: 'Order cashCollected updated successfully',
     data: { id, status }
@@ -467,13 +460,9 @@ router.patch('/:id/submitCash', authenticateToken, authorizeRole(['admin']), val
 
 // Update individual item status (chef only)
 router.patch('/:id/items/:itemId/status', authenticateToken, authorizeRole(['chef', 'admin']), validateItemStatusUpdate, asyncHandler(async (req: express.Request, res: express.Response) => {
-  // const errors = validationResult(req);
-  // if (!errors.isEmpty()) {
-  //   return res.status(400).json({ errors: errors.array() });
-  // }
 
   const { id, itemId } = req.params;
-  const { status, chefRemarks } = req.body;
+  const { status } = req.body;
   const user = (req as any).user
   console.log(req.body)
   const order = await prisma.orderItem.findFirst({
@@ -508,12 +497,18 @@ router.patch('/:id/items/:itemId/status', authenticateToken, authorizeRole(['che
     OrderStatus = 'ready'
   }
 
+  //when order is completed or cancelled don't change order status
   const orderupdate = await prisma.order.update({
-    where: { id: parseInt(id as string) },
+    where: {
+      id: parseInt(id as string),
+      NOT: {
+        status: { in: ["completed", "cancelled"] },
+      },
+    },
     data: {
-      status: OrderStatus as OrderProgress
-    }
-  })
+      status: OrderStatus as OrderProgress,
+    },
+  });
 
   const io = (req as any).io;
   let waiterId = orderupdate.waiterId;

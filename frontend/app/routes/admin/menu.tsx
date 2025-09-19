@@ -4,14 +4,17 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select';
 import { X, Trash2 } from 'lucide-react';
-import { menuAPI } from '~/services/api';
+import apis,{ menuAPI } from '~/services/api';
 import Header from './Header';
 import { useNavigate } from 'react-router';
+import { number } from 'zod';
 
 export default function MenuManagement() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [IsAdding,SetAdding] = useState(false)
   const [newItem, setNewItem] = useState({
+    id:number,
     name: '',
     price: '',
     category: '',
@@ -35,19 +38,23 @@ export default function MenuManagement() {
   // Add new item
   const handleAddItem = async () => {
     try {
+      SetAdding(true)
       const formData = new FormData();
       formData.append('name', newItem.name);
       formData.append('price', newItem.price);
       formData.append('category', newItem.category);
+      formData.append('id',newItem.id)
       if (newItem.image) {
         formData.append('image', newItem.image);
       }
 
       const added = await menuAPI.create(formData);
       setMenuItems(prev => [...prev, added]);
-      setNewItem({ name: '', price: '', category: '', image: null });
+      setNewItem({ name: '', price: '', category: '', image: null ,id:null});
+      SetAdding(false)
       setShowModal(false);
     } catch (error) {
+      SetAdding(false)
       console.error(error);
     }
   };
@@ -86,7 +93,7 @@ export default function MenuManagement() {
         {menuItems.map(item => (
           <Card key={item.id} className="relative">
             <CardContent>
-              <img src={item.image} alt={item.name} className="w-full h-40 object-cover rounded-md mb-4" />
+              <img src={apis.defaults.baseURL+item.image} crossOrigin="anonymous" alt={item.name} className="w-full h-40 object-cover rounded-md mb-4" />
               <h3 className="font-bold text-lg">{item.name}</h3>
               <p className="text-sm text-gray-600">Category: {item.category}</p>
               <p className="text-sm text-gray-600">Price: ${item.price.toFixed(2)}</p>
@@ -116,6 +123,7 @@ export default function MenuManagement() {
             </div>
 
             <div className="space-y-4">
+              <Input placeholder="Item Number" type="number" value={newItem.id} onChange={e => setNewItem({ ...newItem, id: e.target.value })} />
               <Input placeholder="Item Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
               <Input placeholder="Price" type="number" value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
               <Input type="file" onChange={e => setNewItem({ ...newItem, image: e.target.files?.[0] || null })} />
@@ -132,7 +140,7 @@ export default function MenuManagement() {
               </Select>
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-                <Button onClick={handleAddItem}>Add Item</Button>
+                <Button disabled={IsAdding} onClick={handleAddItem}>{IsAdding ? "Adding" : "Add Item"}</Button>
               </div>
             </div>
           </div>

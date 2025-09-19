@@ -11,6 +11,7 @@ datasource db {
 // ✅ Menu Item Model
 model MenuItem {
   id          Int       @id @default(autoincrement())
+  itemNumber  Int       @default(-1)
   description String?   // optional
   name        String
   price       Float
@@ -20,6 +21,7 @@ model MenuItem {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   orders      OrderItem[]
+  deleted     Boolean   @default(false)
 }
 
 // ✅ User Model
@@ -59,6 +61,7 @@ enum OrderStatus {
   pending
   preparing
   ready
+  completed
 }
 
 // ✅ Order Model

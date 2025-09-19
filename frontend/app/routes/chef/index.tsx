@@ -527,6 +527,7 @@ export default function ChefDashboard() {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={((order.status=='cancelled')||(order.status=='completed')||(order.status=='ready'))}
                           className="text-red-600 border-red-200 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -576,7 +577,7 @@ export default function ChefDashboard() {
                                 Quantity: <span className="font-semibold">{it.quantity}</span>
                               </p>
                             </div>
-
+                            {!((order.status=='cancelled')||(order.status=='completed')||(order.status=='ready'))&&(
                             <div className="flex gap-2">
                               {/* Cancel item not exposed by your API; leaving only prepare/ready per API */}
                               {it.status === "pending" && (
@@ -615,6 +616,7 @@ export default function ChefDashboard() {
                                 </Button>
                               )}
                             </div>
+                            )}
                           </div>
                         );
                       })}
@@ -625,7 +627,10 @@ export default function ChefDashboard() {
                           variant="outline"
                           size="sm"
                           className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
-                          onClick={() => cancelOrder(order.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            OrderStatusUpdate(order.id,'cancelled');
+                          }}
                         >
                           <XCircle className="w-4 h-4 mr-2" />
                           Cancel Order

@@ -1,12 +1,13 @@
 
 "use client";
+import api from "~/services/api";
 const MenuItems = ({ item,additems }) => (
   <div className="bg-gray-50 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-    <img src={item.image} alt={item.name} className="w-full h-32 object-cover" />
+    <img  src={api.defaults.baseURL+item.image} crossOrigin="anonymous" alt={item.name} className="w-full h-32 object-cover" />
     <div className="p-3">
       <div className="flex justify-between items-start mb-2">
         <h4 className="font-semibold text-sm text-gray-800">{item.name}</h4>
-        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">ID: {item.id}</span>
+        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">item: {item.itemNumber}</span>
       </div>
       <div className="flex justify-between items-center">
         <span className="font-bold text-blue-600">₹{item.price}</span>
