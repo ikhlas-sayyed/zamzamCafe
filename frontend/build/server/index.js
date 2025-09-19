@@ -16,10 +16,11 @@ import * as LabelPrimitive from "@radix-ui/react-label";
 import { toast } from "sonner";
 import axios from "axios";
 import { io } from "socket.io-client";
-import { ArrowLeft, MapPin, Minus, Plus, XCircle, CheckCircle, Eye, ChefHat, Clock, Filter, Package, Users, UserCheck, ChevronUp, ChevronDown, AlertTriangle, Timer, ChevronDownIcon, CheckIcon, ChevronUpIcon, XIcon, LayoutList, ShoppingCart, PlusCircle, FileText, Printer, Trash2, X } from "lucide-react";
+import { ArrowLeft, MapPin, Minus, Plus, XCircle, CheckCircle, Eye, ChefHat, Clock, Filter, Package, Users, UserCheck, ChevronUp, ChevronDown, AlertTriangle, Timer, ChevronDownIcon, CheckIcon, ChevronUpIcon, XIcon, LayoutList, ShoppingCart, PlusCircle, Lightbulb, FileText, Printer, Trash2, X } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Legend, Bar, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 import * as SelectPrimitive from "@radix-ui/react-select";
+import { number } from "zod";
 const streamTimeout = 5e3;
 function handleRequest(request, responseStatusCode, responseHeaders, routerContext, loadContext) {
   return new Promise((resolve, reject) => {
@@ -327,7 +328,7 @@ function Label({
     }
   );
 }
-const API_BASE_URL = "https://api.insightnest.tech/";
+const API_BASE_URL = "http://localhost:3000";
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -520,7 +521,6 @@ function LoginForm({
     };
     try {
       const response = await authAPI.login(data);
-      alert(response.user.role);
       login2(response.user, response.token);
       toast.success(`Welcome back, ${response.user.firstName}!`);
       switch (response.user.role) {
@@ -605,13 +605,13 @@ const route2 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   default: login
 }, Symbol.toStringTag, { value: "Module" }));
 const MenuItems = ({ item, additems }) => /* @__PURE__ */ jsxs("div", { className: "bg-gray-50 rounded-lg overflow-hidden hover:shadow-md transition-shadow", children: [
-  /* @__PURE__ */ jsx("img", { src: item.image, alt: item.name, className: "w-full h-32 object-cover" }),
+  /* @__PURE__ */ jsx("img", { src: api.defaults.baseURL + item.image, crossOrigin: "anonymous", alt: item.name, className: "w-full h-32 object-cover" }),
   /* @__PURE__ */ jsxs("div", { className: "p-3", children: [
     /* @__PURE__ */ jsxs("div", { className: "flex justify-between items-start mb-2", children: [
       /* @__PURE__ */ jsx("h4", { className: "font-semibold text-sm text-gray-800", children: item.name }),
       /* @__PURE__ */ jsxs("span", { className: "text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded", children: [
-        "ID: ",
-        item.id
+        "item: ",
+        item.itemNumber
       ] })
     ] }),
     /* @__PURE__ */ jsxs("div", { className: "flex justify-between items-center", children: [
@@ -654,9 +654,9 @@ const Header$2 = ({ currentPage = "", navigate }) => /* @__PURE__ */ jsx("header
     )
   ] })
 ] }) }) });
-const CurrentOrderItem = ({ item, onRemove, index: number }) => /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg", children: [
+const CurrentOrderItem = ({ item, onRemove, index: number2 }) => /* @__PURE__ */ jsxs("div", { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg", children: [
   /* @__PURE__ */ jsxs("div", { className: "flex items-center space-x-3", children: [
-    /* @__PURE__ */ jsx("img", { src: item.image, alt: item.name, className: "w-12 h-12 object-cover rounded" }),
+    /* @__PURE__ */ jsx("img", { src: api.defaults.baseURL + item.image, crossOrigin: "anonymous", alt: item.name, className: "w-12 h-12 object-cover rounded" }),
     /* @__PURE__ */ jsxs("div", { children: [
       /* @__PURE__ */ jsx("h4", { className: "font-semibold", children: item.name }),
       /* @__PURE__ */ jsxs("p", { className: "text-sm text-gray-600", children: [
@@ -738,7 +738,7 @@ const Menu$1 = () => {
         const data = await menuAPI.getAll();
         setMenu(data);
         const user = JSON.parse(localStorage.getItem("user"));
-        setWaiterId(user.id);
+        setWaiterId(user.itemNumber);
       } catch (error) {
         console.error("Failed to load menu:", error);
       }
@@ -792,7 +792,7 @@ const Menu$1 = () => {
   }, []);
   const previewItem = useMemo(() => {
     if (!current_itemId) return null;
-    return menu2.find((obj) => obj.id === Number(current_itemId)) ?? null;
+    return menu2.find((obj) => obj.itemNumber === Number(current_itemId)) ?? null;
   }, [menu2, current_itemId]);
   const currentOrderTotal = useMemo(() => orderItems.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0), [orderItems]);
   const itemchng = (itemId) => {
@@ -800,7 +800,14 @@ const Menu$1 = () => {
   };
   const addItemById = () => {
     if (previewItem) {
-      addOrderItem(previewItem.id, itemQuantity, previewItem.name, previewItem.price, previewItem.image);
+      addOrderItem(
+        previewItem.id,
+        // previewItem.itemNumber,
+        itemQuantity,
+        previewItem.name,
+        previewItem.price,
+        previewItem.image
+      );
     }
   };
   const removeFromCurrentOrder = (i) => {
@@ -908,7 +915,8 @@ const Menu$1 = () => {
             children: /* @__PURE__ */ jsxs("div", {
               className: "bg-white border rounded-lg p-3 flex items-center space-x-3",
               children: [/* @__PURE__ */ jsx("img", {
-                src: previewItem.image,
+                src: api.defaults.baseURL + previewItem.image,
+                crossOrigin: "anonymous",
                 alt: previewItem.name,
                 className: "w-16 h-16 object-cover rounded"
               }), /* @__PURE__ */ jsxs("div", {
@@ -954,7 +962,7 @@ const Menu$1 = () => {
               onClick: placeOrder,
               disabled: placing,
               className: "w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors",
-              children: "Submit Order"
+              children: placing ? "Submitting.. Order" : "Submit Order"
             })]
           })]
         }), inputMethod === "menu" && /* @__PURE__ */ jsx("div", {
@@ -2192,6 +2200,7 @@ const index$2 = UNSAFE_withComponentProps(function ChefDashboard() {
                   children: /* @__PURE__ */ jsxs(Button, {
                     variant: "outline",
                     size: "sm",
+                    disabled: order.status == "cancelled" || order.status == "completed" || order.status == "ready",
                     className: "text-red-600 border-red-200 hover:bg-red-50",
                     onClick: (e) => {
                       e.stopPropagation();
@@ -2242,7 +2251,7 @@ const index$2 = UNSAFE_withComponentProps(function ChefDashboard() {
                         children: it.quantity
                       })]
                     })]
-                  }), /* @__PURE__ */ jsxs("div", {
+                  }), !(order.status == "cancelled" || order.status == "completed" || order.status == "ready") && /* @__PURE__ */ jsxs("div", {
                     className: "flex gap-2",
                     children: [it.status === "pending" && /* @__PURE__ */ jsxs(Button, {
                       variant: "default",
@@ -2277,7 +2286,10 @@ const index$2 = UNSAFE_withComponentProps(function ChefDashboard() {
                   variant: "outline",
                   size: "sm",
                   className: "flex-1 text-red-600 border-red-200 hover:bg-red-50",
-                  onClick: () => cancelOrder(order.id),
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    OrderStatusUpdate(order.id, "cancelled");
+                  },
                   children: [/* @__PURE__ */ jsx(XCircle, {
                     className: "w-4 h-4 mr-2"
                   }), "Cancel Order"]
@@ -2641,7 +2653,7 @@ function DialogTitle({
   );
 }
 function Header({ navigate }) {
-  return /* @__PURE__ */ jsx(Fragment, { children: /* @__PURE__ */ jsxs("aside", { className: "w-64 bg-white shadow-md p-6 flex flex-col gap-6", children: [
+  return /* @__PURE__ */ jsx(Fragment, { children: /* @__PURE__ */ jsxs("aside", { className: "w-64 bg-white shadow-md h-screen p-6 flex flex-col gap-6", children: [
     /* @__PURE__ */ jsx("h2", { className: "text-xl font-bold text-gray-800 mb-4", onClick: () => {
       navigate("/admin");
     }, children: "Admin Panel" }),
@@ -2698,14 +2710,17 @@ function Header({ navigate }) {
           ]
         }
       ),
-      /* @__PURE__ */ jsx(
+      /* @__PURE__ */ jsxs(
         "button",
         {
           onClick: () => {
             navigate("/admin/insights");
           },
           className: "flex items-center gap-2 text-gray-700 hover:text-blue-600",
-          children: "Insights"
+          children: [
+            /* @__PURE__ */ jsx(Lightbulb, { className: "w-5 h-5" }),
+            "Insights"
+          ]
         }
       )
     ] })
@@ -2714,7 +2729,6 @@ function Header({ navigate }) {
 function printBill(order) {
   const cgst = (order.totalAmount * 0.025).toFixed(2);
   const sgst = (order.totalAmount * 0.025).toFixed(2);
-  const grandTotal = (order.totalAmount + parseFloat(cgst) + parseFloat(sgst)).toFixed(2);
   const billHtml = `
     <div style="font-family: Courier New, monospace; font-size: 14px; width: 320px;">
       <div style="text-align:center; font-weight:bold;">Cafe Zam Zam</div>
@@ -2741,7 +2755,7 @@ function printBill(order) {
           <tr>
             <td>${item.name}</td>
             <td style="text-align:right;">${item.quantity}</td>
-            <td style="text-align:right;">${item.totalPrice.toFixed(2)}</td>
+            <td style="text-align:right;">${(item.totalPrice - item.totalPrice * 0.05).toFixed(2)}</td>
           </tr>
         `).join("")}
       </table>
@@ -2749,10 +2763,10 @@ function printBill(order) {
       <div style="border-top:1px dashed #000; margin:6px 0;"></div>
 
       <table style="width:100%;">
-        <tr><td><b>Total Amount</b></td><td style="text-align:right;">${order.totalAmount.toFixed(2)}</td></tr>
+        <tr><td><b>Total Amount</b></td><td style="text-align:right;">${(order.totalAmount - parseFloat(cgst + sgst)).toFixed(2)}</td></tr>
         <tr><td>CGST 2.5%</td><td style="text-align:right;">${cgst}</td></tr>
         <tr><td>SGST 2.5%</td><td style="text-align:right;">${sgst}</td></tr>
-        <tr><td><b>Bill Amount</b></td><td style="text-align:right;"><b>${grandTotal}</b></td></tr>
+        <tr><td><b>Bill Amount</b></td><td style="text-align:right;"><b>${order.totalAmount}</b></td></tr>
       </table>
 
       <div style="border-top:1px dashed #000; margin:6px 0;"></div>
@@ -3061,7 +3075,7 @@ const AdminDashboard = () => {
               className: "hover:bg-gray-50",
               children: [/* @__PURE__ */ jsxs("td", {
                 className: "border p-2",
-                children: ["#", order.id]
+                children: ["#", order.orderNumber, " T:", order.tableNumber]
               }), /* @__PURE__ */ jsx("td", {
                 className: "border p-2",
                 children: order.waiterId
@@ -3327,7 +3341,9 @@ const route7 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
 const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
   const [menuItems, setMenuItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [IsAdding, SetAdding] = useState(false);
   const [newItem, setNewItem] = useState({
+    id: number,
     name: "",
     price: "",
     category: "",
@@ -3346,10 +3362,12 @@ const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
   }, []);
   const handleAddItem = async () => {
     try {
+      SetAdding(true);
       const formData = new FormData();
       formData.append("name", newItem.name);
       formData.append("price", newItem.price);
       formData.append("category", newItem.category);
+      formData.append("id", newItem.id);
       if (newItem.image) {
         formData.append("image", newItem.image);
       }
@@ -3359,10 +3377,13 @@ const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
         name: "",
         price: "",
         category: "",
-        image: null
+        image: null,
+        id: null
       });
+      SetAdding(false);
       setShowModal(false);
     } catch (error) {
+      SetAdding(false);
       console.error(error);
     }
   };
@@ -3407,7 +3428,8 @@ const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
           className: "relative",
           children: /* @__PURE__ */ jsxs(CardContent, {
             children: [/* @__PURE__ */ jsx("img", {
-              src: item.image,
+              src: api.defaults.baseURL + item.image,
+              crossOrigin: "anonymous",
               alt: item.name,
               className: "w-full h-40 object-cover rounded-md mb-4"
             }), /* @__PURE__ */ jsx("h3", {
@@ -3457,6 +3479,14 @@ const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
           }), /* @__PURE__ */ jsxs("div", {
             className: "space-y-4",
             children: [/* @__PURE__ */ jsx(Input, {
+              placeholder: "Item Number",
+              type: "number",
+              value: newItem.id,
+              onChange: (e) => setNewItem({
+                ...newItem,
+                id: e.target.value
+              })
+            }), /* @__PURE__ */ jsx(Input, {
               placeholder: "Item Name",
               value: newItem.name,
               onChange: (e) => setNewItem({
@@ -3512,8 +3542,9 @@ const menu$1 = UNSAFE_withComponentProps(function MenuManagement() {
                 onClick: () => setShowModal(false),
                 children: "Cancel"
               }), /* @__PURE__ */ jsx(Button, {
+                disabled: IsAdding,
                 onClick: handleAddItem,
-                children: "Add Item"
+                children: IsAdding ? "Adding" : "Add Item"
               })]
             })]
           })]
@@ -3832,7 +3863,7 @@ const Menu = () => {
         const data = await menuAPI.getAll();
         setMenu(data);
         const user = JSON.parse(localStorage.getItem("user"));
-        setWaiterId(user.id);
+        setWaiterId(user.itemNumber);
       } catch (error) {
         console.error("Failed to load menu:", error);
       }
@@ -3886,7 +3917,7 @@ const Menu = () => {
   }, []);
   const previewItem = useMemo(() => {
     if (!current_itemId) return null;
-    return menu2.find((obj) => obj.id === Number(current_itemId)) ?? null;
+    return menu2.find((obj) => obj.itemNumber === Number(current_itemId)) ?? null;
   }, [menu2, current_itemId]);
   const currentOrderTotal = useMemo(() => orderItems.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0), [orderItems]);
   const itemchng = (itemId) => {
@@ -3894,7 +3925,14 @@ const Menu = () => {
   };
   const addItemById = () => {
     if (previewItem) {
-      addOrderItem(previewItem.id, itemQuantity, previewItem.name, previewItem.price, previewItem.image);
+      addOrderItem(
+        previewItem.id,
+        // previewItem.itemNumber,
+        itemQuantity,
+        previewItem.name,
+        previewItem.price,
+        previewItem.image
+      );
     }
   };
   const removeFromCurrentOrder = (i) => {
@@ -3921,143 +3959,150 @@ const Menu = () => {
       setPlacing(false);
     }
   };
-  useNavigate();
-  return /* @__PURE__ */ jsxs(Fragment, {
-    children: [/* @__PURE__ */ jsx(Toasts, {
-      toasts,
-      onClose: remove
-    }), /* @__PURE__ */ jsx("div", {
-      className: "container mx-auto px-4 py-6",
-      children: /* @__PURE__ */ jsxs("div", {
-        className: "bg-white rounded-2xl shadow-lg p-6 mb-6",
-        children: [/* @__PURE__ */ jsx("h2", {
-          className: "text-xl font-bold text-gray-800 mb-4",
-          children: "Create New Order"
-        }), /* @__PURE__ */ jsx("div", {
-          className: "grid grid-cols-1 md:grid-cols-3 gap-4 mb-6",
-          children: /* @__PURE__ */ jsxs("div", {
-            children: [/* @__PURE__ */ jsx("label", {
-              className: "block text-sm font-medium text-gray-700 mb-2",
-              children: "Table Number"
-            }), /* @__PURE__ */ jsx("input", {
-              type: "number",
-              value: tableNumber ?? "",
-              onChange: (e) => setTableNumber(parseInt(e.target.value)),
-              className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-              placeholder: "Table #"
-            })]
-          })
-        }), /* @__PURE__ */ jsxs("div", {
-          className: "flex space-x-4 mb-6",
-          children: [/* @__PURE__ */ jsx("button", {
-            onClick: () => setInputMethod("menu"),
-            className: `px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "menu" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`,
-            children: "Menu Selection"
-          }), /* @__PURE__ */ jsx("button", {
-            onClick: () => setInputMethod("id"),
-            className: `px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "id" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`,
-            children: "ID Entry"
-          })]
-        }), inputMethod === "id" && /* @__PURE__ */ jsxs("div", {
-          className: "bg-gray-50 rounded-lg p-6 mb-6",
-          children: [/* @__PURE__ */ jsx("h3", {
-            className: "text-lg font-semibold text-gray-800 mb-4",
-            children: "Enter Item by ID"
-          }), /* @__PURE__ */ jsxs("div", {
-            className: "grid grid-cols-1 md:grid-cols-3 gap-4",
-            children: [/* @__PURE__ */ jsxs("div", {
-              children: [/* @__PURE__ */ jsx("label", {
-                className: "block text-sm font-medium text-gray-700 mb-2",
-                children: "Item ID"
-              }), /* @__PURE__ */ jsx("input", {
-                type: "number",
-                value: current_itemId ?? "",
-                onChange: (e) => itemchng(e.target.value),
-                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-                placeholder: "Enter ID (1-12)"
-              })]
-            }), /* @__PURE__ */ jsxs("div", {
-              children: [/* @__PURE__ */ jsx("label", {
-                className: "block text-sm font-medium text-gray-700 mb-2",
-                children: "Quantity"
-              }), /* @__PURE__ */ jsx("input", {
-                type: "number",
-                min: "1",
-                value: itemQuantity,
-                onChange: (e) => setItemQuantity(parseInt(e.target.value) || 1),
-                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              })]
-            }), /* @__PURE__ */ jsx("div", {
-              className: "flex items-end",
-              children: /* @__PURE__ */ jsx("button", {
-                onClick: addItemById,
-                className: "w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors",
-                children: "Add Item"
-              })
-            })]
-          }), previewItem && /* @__PURE__ */ jsx("div", {
-            className: "mt-4",
+  const navigate = useNavigate();
+  return /* @__PURE__ */ jsx(Fragment, {
+    children: /* @__PURE__ */ jsxs("div", {
+      className: "min-h-screen flex bg-gray-100",
+      children: [/* @__PURE__ */ jsx(Header, {
+        navigate
+      }), /* @__PURE__ */ jsx(Toasts, {
+        toasts,
+        onClose: remove
+      }), /* @__PURE__ */ jsx("div", {
+        className: "container mx-auto px-4 py-6",
+        children: /* @__PURE__ */ jsxs("div", {
+          className: "bg-white rounded-2xl shadow-lg p-6 mb-6",
+          children: [/* @__PURE__ */ jsx("h2", {
+            className: "text-xl font-bold text-gray-800 mb-4",
+            children: "Create New Order"
+          }), /* @__PURE__ */ jsx("div", {
+            className: "grid grid-cols-1 md:grid-cols-3 gap-4 mb-6",
             children: /* @__PURE__ */ jsxs("div", {
-              className: "bg-white border rounded-lg p-3 flex items-center space-x-3",
-              children: [/* @__PURE__ */ jsx("img", {
-                src: previewItem.image,
-                alt: previewItem.name,
-                className: "w-16 h-16 object-cover rounded"
-              }), /* @__PURE__ */ jsxs("div", {
-                children: [/* @__PURE__ */ jsx("h4", {
-                  className: "font-semibold",
-                  children: previewItem.name
-                }), /* @__PURE__ */ jsxs("p", {
-                  className: "text-blue-600 font-bold",
-                  children: ["₹", previewItem.price]
-                })]
+              children: [/* @__PURE__ */ jsx("label", {
+                className: "block text-sm font-medium text-gray-700 mb-2",
+                children: "Table Number"
+              }), /* @__PURE__ */ jsx("input", {
+                type: "number",
+                value: tableNumber ?? "",
+                onChange: (e) => setTableNumber(parseInt(e.target.value)),
+                className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+                placeholder: "Table #"
               })]
             })
-          })]
-        }), orderItems.length > 0 && /* @__PURE__ */ jsxs("div", {
-          className: "bg-white rounded-2xl shadow-lg p-6 mb-6",
-          children: [/* @__PURE__ */ jsxs("div", {
-            className: "flex justify-between items-center mb-4",
-            children: [/* @__PURE__ */ jsx("h3", {
-              className: "text-xl font-bold text-gray-800",
-              children: "Current Order"
-            }), /* @__PURE__ */ jsx("button", {
-              onClick: clearOrder,
-              className: "text-red-500 hover:text-red-700 font-medium",
-              children: "Clear All"
-            })]
-          }), /* @__PURE__ */ jsx("div", {
-            className: "space-y-3",
-            children: orderItems.map((item, index2) => /* @__PURE__ */ jsx(CurrentOrderItem, {
-              item,
-              index: index2,
-              onRemove: removeFromCurrentOrder
-            }, item.menuItemId))
           }), /* @__PURE__ */ jsxs("div", {
-            className: "border-t pt-4 mt-4",
-            children: [/* @__PURE__ */ jsxs("div", {
-              className: "flex justify-between items-center text-xl font-bold",
-              children: [/* @__PURE__ */ jsx("span", {
-                children: "Total"
-              }), /* @__PURE__ */ jsxs("span", {
-                children: ["₹", currentOrderTotal]
-              })]
+            className: "flex space-x-4 mb-6",
+            children: [/* @__PURE__ */ jsx("button", {
+              onClick: () => setInputMethod("menu"),
+              className: `px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "menu" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`,
+              children: "Menu Selection"
             }), /* @__PURE__ */ jsx("button", {
-              onClick: placeOrder,
-              disabled: placing,
-              className: "w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors",
-              children: "Submit Order"
+              onClick: () => setInputMethod("id"),
+              className: `px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "id" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`,
+              children: "ID Entry"
             })]
+          }), inputMethod === "id" && /* @__PURE__ */ jsxs("div", {
+            className: "bg-gray-50 rounded-lg p-6 mb-6",
+            children: [/* @__PURE__ */ jsx("h3", {
+              className: "text-lg font-semibold text-gray-800 mb-4",
+              children: "Enter Item by ID"
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "grid grid-cols-1 md:grid-cols-3 gap-4",
+              children: [/* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("label", {
+                  className: "block text-sm font-medium text-gray-700 mb-2",
+                  children: "Item ID"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "number",
+                  value: current_itemId ?? "",
+                  onChange: (e) => itemchng(e.target.value),
+                  className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+                  placeholder: "Enter ID (1-12)"
+                })]
+              }), /* @__PURE__ */ jsxs("div", {
+                children: [/* @__PURE__ */ jsx("label", {
+                  className: "block text-sm font-medium text-gray-700 mb-2",
+                  children: "Quantity"
+                }), /* @__PURE__ */ jsx("input", {
+                  type: "number",
+                  min: "1",
+                  value: itemQuantity,
+                  onChange: (e) => setItemQuantity(parseInt(e.target.value) || 1),
+                  className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                })]
+              }), /* @__PURE__ */ jsx("div", {
+                className: "flex items-end",
+                children: /* @__PURE__ */ jsx("button", {
+                  onClick: addItemById,
+                  className: "w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors",
+                  children: "Add Item"
+                })
+              })]
+            }), previewItem && /* @__PURE__ */ jsx("div", {
+              className: "mt-4",
+              children: /* @__PURE__ */ jsxs("div", {
+                className: "bg-white border rounded-lg p-3 flex items-center space-x-3",
+                children: [/* @__PURE__ */ jsx("img", {
+                  src: api.defaults.baseURL + previewItem.image,
+                  crossOrigin: "anonymous",
+                  alt: previewItem.name,
+                  className: "w-16 h-16 object-cover rounded"
+                }), /* @__PURE__ */ jsxs("div", {
+                  children: [/* @__PURE__ */ jsx("h4", {
+                    className: "font-semibold",
+                    children: previewItem.name
+                  }), /* @__PURE__ */ jsxs("p", {
+                    className: "text-blue-600 font-bold",
+                    children: ["₹", previewItem.price]
+                  })]
+                })]
+              })
+            })]
+          }), orderItems.length > 0 && /* @__PURE__ */ jsxs("div", {
+            className: "bg-white rounded-2xl shadow-lg p-6 mb-6",
+            children: [/* @__PURE__ */ jsxs("div", {
+              className: "flex justify-between items-center mb-4",
+              children: [/* @__PURE__ */ jsx("h3", {
+                className: "text-xl font-bold text-gray-800",
+                children: "Current Order"
+              }), /* @__PURE__ */ jsx("button", {
+                onClick: clearOrder,
+                disabled: placing,
+                className: "text-red-500 hover:text-red-700 font-medium",
+                children: "Clear All"
+              })]
+            }), /* @__PURE__ */ jsx("div", {
+              className: "space-y-3",
+              children: orderItems.map((item, index2) => /* @__PURE__ */ jsx(CurrentOrderItem, {
+                item,
+                index: index2,
+                onRemove: removeFromCurrentOrder
+              }, item.menuItemId))
+            }), /* @__PURE__ */ jsxs("div", {
+              className: "border-t pt-4 mt-4",
+              children: [/* @__PURE__ */ jsxs("div", {
+                className: "flex justify-between items-center text-xl font-bold",
+                children: [/* @__PURE__ */ jsx("span", {
+                  children: "Total"
+                }), /* @__PURE__ */ jsxs("span", {
+                  children: ["₹", currentOrderTotal]
+                })]
+              }), /* @__PURE__ */ jsx("button", {
+                onClick: placeOrder,
+                disabled: placing,
+                className: "w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                children: placing ? "Submitting.. Order" : "Submit Order"
+              })]
+            })]
+          }), inputMethod === "menu" && /* @__PURE__ */ jsx("div", {
+            className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6",
+            children: menu2.map((item) => /* @__PURE__ */ jsx(MenuItems, {
+              item,
+              additems: addOrderItem
+            }, item.id))
           })]
-        }), inputMethod === "menu" && /* @__PURE__ */ jsx("div", {
-          className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6",
-          children: menu2.map((item) => /* @__PURE__ */ jsx(MenuItems, {
-            item,
-            additems: addOrderItem
-          }, item.id))
-        })]
-      })
-    })]
+        })
+      })]
+    })
   });
 };
 const addOrder = UNSAFE_withComponentProps(Menu);
@@ -4368,8 +4413,8 @@ const menu = UNSAFE_withComponentProps(function MenuManagement2() {
           className: "relative",
           children: /* @__PURE__ */ jsxs(CardContent, {
             children: [/* @__PURE__ */ jsx("img", {
-              src: item.image,
-              alt: item.name,
+              src: api.defaults.baseURL + item.image,
+              crossOrigin: "anonymous",
               className: "w-full h-40 object-cover rounded-md mb-4"
             }), /* @__PURE__ */ jsx("h3", {
               className: "font-bold text-lg",
@@ -4470,7 +4515,7 @@ const route12 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   __proto__: null,
   default: menu
 }, Symbol.toStringTag, { value: "Module" }));
-const serverManifest = { "entry": { "module": "/assets/entry.client-C8Hg411F.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-C5gdAslh.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": true, "module": "/assets/root-BsqRspyb.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-C5gdAslh.js"], "css": ["/assets/root-CLF0WI0z.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/home-C9_wBmme.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/auth-DCfcifDY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "/login", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/login-_-nYnRJR.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/button-DQc83rjE.js", "/assets/card-CF0P5cGQ.js", "/assets/input-FauOGYKd.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js", "/assets/auth-DCfcifDY.js", "/assets/api-Cr5uWYEN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/waiter/menu": { "id": "routes/waiter/menu", "parentId": "root", "path": "/waiter", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-7V9jMk-w.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-Cr5uWYEN.js", "/assets/CurrentOrderItem-CTOLkoQ9.js", "/assets/Header-C2t_h_k6.js", "/assets/index-CA1CrNgP.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/waiter/Orders": { "id": "routes/waiter/Orders", "parentId": "root", "path": "/waiter/orders", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/Orders-DTbm88Bk.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/map-pin-1iWk_dRw.js", "/assets/api-Cr5uWYEN.js", "/assets/index-CA1CrNgP.js", "/assets/Header-C2t_h_k6.js", "/assets/createLucideIcon-DlhUvwdl.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/chef/index": { "id": "routes/chef/index", "parentId": "root", "path": "/chef", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/index-D_7p67-I.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-CA1CrNgP.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/map-pin-1iWk_dRw.js", "/assets/api-Cr5uWYEN.js", "/assets/header-DfiKBqCc.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/index": { "id": "routes/admin/index", "parentId": "root", "path": "/admin", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/index-BT3aA7X1.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-Cr5uWYEN.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/dialog-B_vhg04E.js", "/assets/Header-DGBBqV3K.js", "/assets/index-CA1CrNgP.js", "/assets/printBill-DnXLfvfh.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/insights": { "id": "routes/admin/insights", "parentId": "root", "path": "/admin/insights", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/insights-DxTxqbX3.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/input-FauOGYKd.js", "/assets/button-DQc83rjE.js", "/assets/api-Cr5uWYEN.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/menu": { "id": "routes/admin/menu", "parentId": "root", "path": "/admin/menu", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-BMsTIXYm.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/api-Cr5uWYEN.js", "/assets/Header-DGBBqV3K.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-C5gdAslh.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/orders": { "id": "routes/admin/orders", "parentId": "root", "path": "/admin/orders", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/orders-DZ1B_ZH-.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/dialog-B_vhg04E.js", "/assets/api-Cr5uWYEN.js", "/assets/Header-DGBBqV3K.js", "/assets/printBill-DnXLfvfh.js", "/assets/index-C5gdAslh.js", "/assets/Combination-Dov-rLQ-.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/addOrder": { "id": "routes/admin/addOrder", "parentId": "root", "path": "/admin/addOrder", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/addOrder-QTjEJBfZ.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-Cr5uWYEN.js", "/assets/CurrentOrderItem-CTOLkoQ9.js", "/assets/index-CA1CrNgP.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/users": { "id": "routes/admin/users", "parentId": "root", "path": "/admin/users", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/users-BSrV-IxX.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-Cr5uWYEN.js", "/assets/button-DQc83rjE.js", "/assets/dialog-B_vhg04E.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/Header-DGBBqV3K.js", "/assets/Combination-Dov-rLQ-.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/chef/menu": { "id": "routes/chef/menu", "parentId": "root", "path": "/chef/menu", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-CcknqR7G.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/api-Cr5uWYEN.js", "/assets/header-DfiKBqCc.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-C5gdAslh.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js", "/assets/createLucideIcon-DlhUvwdl.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-9450d0cc.js", "version": "9450d0cc", "sri": void 0 };
+const serverManifest = { "entry": { "module": "/assets/entry.client-C8Hg411F.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-C5gdAslh.js"], "css": [] }, "routes": { "root": { "id": "root", "parentId": void 0, "path": "", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": true, "module": "/assets/root-C-LaVtqW.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-C5gdAslh.js"], "css": ["/assets/root-DXK-XC94.css"], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/home": { "id": "routes/home", "parentId": "root", "path": void 0, "index": true, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/home-C9_wBmme.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/auth-DCfcifDY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/login": { "id": "routes/login", "parentId": "root", "path": "/login", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/login-CSqjzeHT.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/button-DQc83rjE.js", "/assets/card-CF0P5cGQ.js", "/assets/input-FauOGYKd.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js", "/assets/auth-DCfcifDY.js", "/assets/api-CIihbRwE.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/waiter/menu": { "id": "routes/waiter/menu", "parentId": "root", "path": "/waiter", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-D4Rp5sJV.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-CIihbRwE.js", "/assets/CurrentOrderItem-7r13Y-bP.js", "/assets/Header-C2t_h_k6.js", "/assets/index-CA1CrNgP.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/waiter/Orders": { "id": "routes/waiter/Orders", "parentId": "root", "path": "/waiter/orders", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/Orders-W5omZVLj.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/map-pin-1iWk_dRw.js", "/assets/api-CIihbRwE.js", "/assets/index-CA1CrNgP.js", "/assets/Header-C2t_h_k6.js", "/assets/createLucideIcon-DlhUvwdl.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/chef/index": { "id": "routes/chef/index", "parentId": "root", "path": "/chef", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/index-BkF3aGBF.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/index-CA1CrNgP.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/map-pin-1iWk_dRw.js", "/assets/api-CIihbRwE.js", "/assets/header-DfiKBqCc.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/index": { "id": "routes/admin/index", "parentId": "root", "path": "/admin", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/index-DtfJzKP7.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-CIihbRwE.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/dialog-B_vhg04E.js", "/assets/Header-DfIEmK8s.js", "/assets/index-CA1CrNgP.js", "/assets/printBill-75M7aY6S.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/insights": { "id": "routes/admin/insights", "parentId": "root", "path": "/admin/insights", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/insights-DEdzGslD.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/input-FauOGYKd.js", "/assets/button-DQc83rjE.js", "/assets/api-CIihbRwE.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/menu": { "id": "routes/admin/menu", "parentId": "root", "path": "/admin/menu", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-B3_vV_ZS.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/api-CIihbRwE.js", "/assets/Header-DfIEmK8s.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-C5gdAslh.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/orders": { "id": "routes/admin/orders", "parentId": "root", "path": "/admin/orders", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/orders-D1n_qCav.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/dialog-B_vhg04E.js", "/assets/api-CIihbRwE.js", "/assets/Header-DfIEmK8s.js", "/assets/printBill-75M7aY6S.js", "/assets/index-C5gdAslh.js", "/assets/Combination-Dov-rLQ-.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/addOrder": { "id": "routes/admin/addOrder", "parentId": "root", "path": "/admin/addOrder", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/addOrder-BptKYK3E.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/Header-DfIEmK8s.js", "/assets/api-CIihbRwE.js", "/assets/CurrentOrderItem-7r13Y-bP.js", "/assets/index-CA1CrNgP.js", "/assets/createLucideIcon-DlhUvwdl.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/admin/users": { "id": "routes/admin/users", "parentId": "root", "path": "/admin/users", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/users-CXLNKOqb.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/api-CIihbRwE.js", "/assets/button-DQc83rjE.js", "/assets/dialog-B_vhg04E.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/Header-DfIEmK8s.js", "/assets/Combination-Dov-rLQ-.js", "/assets/createLucideIcon-DlhUvwdl.js", "/assets/index-BZlCCt0w.js", "/assets/index-C5gdAslh.js", "/assets/chevron-up-BUQweAlY.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 }, "routes/chef/menu": { "id": "routes/chef/menu", "parentId": "root", "path": "/chef/menu", "index": void 0, "caseSensitive": void 0, "hasAction": false, "hasLoader": false, "hasClientAction": false, "hasClientLoader": false, "hasClientMiddleware": false, "hasErrorBoundary": false, "module": "/assets/menu-BPYApxxx.js", "imports": ["/assets/chunk-UH6JLGW7-DB7KfY1H.js", "/assets/card-CF0P5cGQ.js", "/assets/button-DQc83rjE.js", "/assets/input-FauOGYKd.js", "/assets/select-xCTCY9o9.js", "/assets/api-CIihbRwE.js", "/assets/header-DfiKBqCc.js", "/assets/Combination-Dov-rLQ-.js", "/assets/index-C5gdAslh.js", "/assets/index-BZlCCt0w.js", "/assets/chevron-up-BUQweAlY.js", "/assets/createLucideIcon-DlhUvwdl.js"], "css": [], "clientActionModule": void 0, "clientLoaderModule": void 0, "clientMiddlewareModule": void 0, "hydrateFallbackModule": void 0 } }, "url": "/assets/manifest-2c3ada38.js", "version": "2c3ada38", "sri": void 0 };
 const assetsBuildDirectory = "build\\client";
 const basename = "/";
 const future = { "unstable_middleware": false, "unstable_optimizeDeps": false, "unstable_splitRouteModules": false, "unstable_subResourceIntegrity": false, "unstable_viteEnvironmentApi": false };

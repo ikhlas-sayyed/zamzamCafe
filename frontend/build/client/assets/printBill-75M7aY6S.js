@@ -1,4 +1,4 @@
-function o(t){const d=(t.totalAmount*.025).toFixed(2),l=(t.totalAmount*.025).toFixed(2),a=(t.totalAmount+parseFloat(d)+parseFloat(l)).toFixed(2),n=`
+function n(t){const d=(t.totalAmount*.025).toFixed(2),l=(t.totalAmount*.025).toFixed(2),a=`
     <div style="font-family: Courier New, monospace; font-size: 14px; width: 320px;">
       <div style="text-align:center; font-weight:bold;">Cafe Zam Zam</div>
       <div style="text-align:center;">Pune</div>
@@ -24,7 +24,7 @@ function o(t){const d=(t.totalAmount*.025).toFixed(2),l=(t.totalAmount*.025).toF
           <tr>
             <td>${i.name}</td>
             <td style="text-align:right;">${i.quantity}</td>
-            <td style="text-align:right;">${i.totalPrice.toFixed(2)}</td>
+            <td style="text-align:right;">${(i.totalPrice-i.totalPrice*.05).toFixed(2)}</td>
           </tr>
         `).join("")}
       </table>
@@ -32,13 +32,13 @@ function o(t){const d=(t.totalAmount*.025).toFixed(2),l=(t.totalAmount*.025).toF
       <div style="border-top:1px dashed #000; margin:6px 0;"></div>
 
       <table style="width:100%;">
-        <tr><td><b>Total Amount</b></td><td style="text-align:right;">${t.totalAmount.toFixed(2)}</td></tr>
+        <tr><td><b>Total Amount</b></td><td style="text-align:right;">${(t.totalAmount-parseFloat(d+l)).toFixed(2)}</td></tr>
         <tr><td>CGST 2.5%</td><td style="text-align:right;">${d}</td></tr>
         <tr><td>SGST 2.5%</td><td style="text-align:right;">${l}</td></tr>
-        <tr><td><b>Bill Amount</b></td><td style="text-align:right;"><b>${a}</b></td></tr>
+        <tr><td><b>Bill Amount</b></td><td style="text-align:right;"><b>${t.totalAmount}</b></td></tr>
       </table>
 
       <div style="border-top:1px dashed #000; margin:6px 0;"></div>
       <div style="text-align:center;">Thank You! Visit Again</div>
     </div>
-  `,e=window.open("","","width=400,height=600");e.document.write(`<html><head><title>Bill</title></head><body>${n}</body></html>`),e.document.close(),e.focus(),e.print(),e.close()}export{o as p};
+  `,e=window.open("","","width=400,height=600");e.document.write(`<html><head><title>Bill</title></head><body>${a}</body></html>`),e.document.close(),e.focus(),e.print(),e.close()}export{n as p};
