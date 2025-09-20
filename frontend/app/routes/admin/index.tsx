@@ -1,37 +1,29 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, } from 'react';
-import { FileText, Printer, X, LayoutList, ShoppingCart, PlusCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FileText, Printer } from 'lucide-react';
 import api, { ordersAPI } from '~/services/api';
-import { Card, CardHeader, CardContent } from "~/components/ui/card";
+import { CardHeader, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "~/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
-// import { io } from 'socket.io-client';
+import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import Header from './Header';
 import { useNavigate } from 'react-router';
 import { io, type Socket } from "socket.io-client";
 import printBill from "./printBill";
 
-
 type Toast = { id: string; message: string };
 
 function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
-
   const remove = useCallback((id: string) => {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
-
   const push = useCallback(
     (message: string) => {
       const id = Math.random().toString(36).slice(2);
       setToasts((t) => [{ id, message }, ...t]);
-      // auto-dismiss
       setTimeout(() => remove(id), 4000);
     },
     [remove]
   );
-
   return { toasts, push, remove };
 }
 
@@ -43,8 +35,6 @@ function Toasts({ toasts, onClose }: { toasts: Toast[]; onClose: (id: string) =>
           key={t.id}
           className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg border border-gray-700/50 cursor-pointer"
           onClick={() => onClose(t.id)}
-          role="status"
-          aria-live="polite"
         >
           {t.message}
         </div>
@@ -54,24 +44,19 @@ function Toasts({ toasts, onClose }: { toasts: Toast[]; onClose: (id: string) =>
 }
 
 const AdminDashboard = () => {
-
   const socketRef = useRef<Socket | null>(null);
   const SOCKET_URL = (api.defaults.baseURL as string) || "http://localhost:3000";
   const { toasts, push, remove } = useToasts();
+
   const [stats, setStats] = useState({
-    totalOrders: 0,
-    pending: 0,
-    preparing: 0,
-    completed: 0,
-    cancelled: 0
+    totalOrders: 0, pending: 0, preparing: 0, completed: 0, cancelled: 0
   });
 
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [selectedTable, setSelectedTable] = useState<number | null>(null); // New: selected table
 
-  // Fetch all orders and update stats
   const fetchOrders = async () => {
     try {
       const res = await ordersAPI.getAll();
@@ -93,7 +78,6 @@ const AdminDashboard = () => {
     });
   };
 
-
   useEffect(() => {
     const s = io(SOCKET_URL, { transports: ["websocket"] });
     socketRef.current = s;
@@ -101,15 +85,12 @@ const AdminDashboard = () => {
     s.on("OrderStatus", (payload: { waiterId: number; status: string; orderNumber: string }) => {
       setOrders((prevOrders) =>
         prevOrders.map((o) =>
-          o.orderNumber === payload.orderNumber
-            ? { ...o, status: payload.status } // updated copy
-            : o // unchanged
+          o.orderNumber === payload.orderNumber ? { ...o, status: payload.status } : o
         )
       );
-
     });
 
-    s.on("newOrder", (payload: { waiterId: number; order: Order }) => {
+    s.on("newOrder", (payload: { waiterId: number; order: any }) => {
       const order = { ...payload.order, items: payload.order.items || [] };
       setOrders(prev => {
         const updated = [...prev, order];
@@ -118,40 +99,22 @@ const AdminDashboard = () => {
       });
     });
 
-    s.on(
-      "ItemStatus",
-      (payload: { waiterId: number; status: string; orderNumber: string; name: string }) => {
-        if (payload.waiterId === 0) {
-          push(`Order #${payload.orderNumber} - ${payload.name} is ${payload.status}`);
-        }
-      }
-    );
     fetchOrders();
-
-    return () => {
-      s.disconnect();
-    };
-  }, [SOCKET_URL, push]);
+    return () => s.disconnect();
+  }, [SOCKET_URL]);
 
   const getStatusBadge = (status: string) => {
     const base = 'px-2 py-1 rounded text-xs font-medium capitalize';
     switch (status) {
-      case 'pending':
-        return <span className={`${base} bg-yellow-100 text-yellow-700`}>Pending</span>;
-      case 'preparing':
-        return <span className={`${base} bg-blue-100 text-blue-700`}>Preparing</span>;
-      case 'completed':
-        return <span className={`${base} bg-green-100 text-green-700`}>Completed</span>;
-      case 'cancelled':
-        return <span className={`${base} bg-red-100 text-red-700`}>Cancelled</span>;
-      default:
-        return <span className={`${base} bg-gray-100 text-gray-700`}>{status}</span>;
+      case 'pending': return <span className={`${base} bg-yellow-100 text-yellow-700`}>Pending</span>;
+      case 'preparing': return <span className={`${base} bg-blue-100 text-blue-700`}>Preparing</span>;
+      case 'completed': return <span className={`${base} bg-green-100 text-green-700`}>Completed</span>;
+      case 'cancelled': return <span className={`${base} bg-red-100 text-red-700`}>Cancelled</span>;
+      default: return <span className={`${base} bg-gray-100 text-gray-700`}>{status}</span>;
     }
   };
 
-  const calculateTotal = (items: any[]) => {
-    return items.reduce((total, item) => total + item.totalPrice, 0).toFixed(2);
-  };
+  const calculateTotal = (items: any[]) => items.reduce((total, item) => total + item.totalPrice, 0).toFixed(2);
 
   const handleStatusUpdate = async (orderId: number, newStatus: string) => {
     try {
@@ -162,9 +125,7 @@ const AdminDashboard = () => {
         return updatedOrders;
       });
       if (selectedOrder?.id === orderId) setSelectedOrder(updated);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const UpdateCash = async (orderId: string) => {
@@ -176,9 +137,7 @@ const AdminDashboard = () => {
         return updatedOrders;
       });
       if (selectedOrder?.id === orderId) setSelectedOrder(updated);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const handleDeleteOrder = async (orderId: number) => {
@@ -191,21 +150,24 @@ const AdminDashboard = () => {
         return updated;
       });
       setSelectedOrder(null);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const navigate = useNavigate();
 
-  const filteredOrders = filterStatus ? orders.filter(o => o.status === filterStatus) : orders;
+  // Filter orders based on selected status and table
+  const filteredOrders = orders.filter(o => 
+    (filterStatus ? o.status === filterStatus : true) &&
+    (selectedTable !== null ? o.tableNumber === selectedTable : true)
+  );
+
+  // Get unique table numbers
+  const tableNumbers = Array.from(new Set(orders.map(o => o.tableNumber))).sort((a, b) => a - b);
 
   return (
     <div className="min-h-screen flex bg-gray-100">
-
       <Header navigate={navigate} />
 
-      {/* Main Content */}
       <main className="flex-1 p-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Dashboard</h1>
 
@@ -231,6 +193,21 @@ const AdminDashboard = () => {
             <p className="text-sm text-gray-600">Cancelled</p>
             <p className="text-3xl font-bold">{stats.cancelled}</p>
           </div>
+        </div>
+
+        {/* Table Boxes */}
+        <div className="flex flex-wrap gap-3 mb-4">
+          {tableNumbers.map(table => (
+            <button
+              key={table}
+              onClick={() => setSelectedTable(selectedTable === table ? null : table)}
+              className={`px-4 py-2 rounded-lg font-semibold border shadow-md ${
+                selectedTable === table ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-900 border-gray-300'
+              }`}
+            >
+              Table {table}
+            </button>
+          ))}
         </div>
 
         {/* Orders Table */}
@@ -274,7 +251,7 @@ const AdminDashboard = () => {
                   <td className="border p-2">{getStatusBadge(order.status)}</td>
                   <td className="border p-2 flex gap-2">
                     <button
-                      onClick={() => { setSelectedOrder(order); setShowModal(true); }}
+                      onClick={() => { setSelectedOrder(order); }}
                       className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
                       <FileText className="w-4 h-4" /> View
@@ -292,18 +269,17 @@ const AdminDashboard = () => {
         </div>
       </main>
 
+      {/* Order Modal */}
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
         <DialogContent>
           <CardHeader>
             <DialogTitle>Order #{selectedOrder?.id}</DialogTitle>
           </CardHeader>
-
           <p><strong>Waiter:</strong> {selectedOrder?.waiter}</p>
           <p><strong>Status:</strong> {selectedOrder?.status}</p>
           <p><strong>Total Items:</strong> {selectedOrder?.totalItems}</p>
           <p><strong>Total Amount:</strong> ₹{selectedOrder?.totalAmount}</p>
 
-          {/* List all items */}
           <div className="mt-4">
             <h4 className="font-semibold mb-2">Items:</h4>
             <ul className="space-y-1">
@@ -325,17 +301,13 @@ const AdminDashboard = () => {
             </Button>
 
             {selectedOrder?.status !== "completed" && (
-              <Button
-                onClick={() => handleStatusUpdate(selectedOrder.id, "completed")}
-              >
+              <Button onClick={() => handleStatusUpdate(selectedOrder.id, "completed")}>
                 Mark as Completed
               </Button>
             )}
 
             {selectedOrder?.cashCollected===false && (
-              <Button
-                onClick={() => UpdateCash(selectedOrder.id)}
-              >
+              <Button onClick={() => UpdateCash(selectedOrder.id)}>
                 Mark Cash Collected
               </Button>
             )}

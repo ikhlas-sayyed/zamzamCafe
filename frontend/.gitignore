@@ -2,4 +2,5 @@
 /node_modules/
 
 # React Router
+/build
 /.react-router/
