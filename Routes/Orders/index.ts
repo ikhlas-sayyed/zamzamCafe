@@ -62,6 +62,9 @@ router.get(
     if (user.role === "waiter") {
       query.waiterId = user.userId;
     }
+    if (user.role ==="chef") {
+       query.chef=true;
+    }
 
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
@@ -69,6 +72,7 @@ router.get(
     const orders = await prisma.order.findMany({
       where: {
         ...(query.waiterId && { waiterId: query.waiterId }),
+        ...(query.chef && { status: {notIn:['cancelled','completed']} }),
         createdAt: {
           gte: todayStart,
           lt: todayEnd,

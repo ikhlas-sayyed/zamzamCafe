@@ -32,7 +32,6 @@ function useToasts() {
     (message: string) => {
       const id = Math.random().toString(36).slice(2);
       setToasts((t) => [{ id, message }, ...t]);
-      // auto-dismiss
       setTimeout(() => remove(id), 4000);
     },
     [remove]
@@ -64,7 +63,7 @@ const Menu: React.FC = () => {
   const [waiterId, setWaiterId] = useState<number>();
   const [selected, setSelected] = useState<{ [id: string]: number }>({});
   const [tableNumber, setTableNumber] = useState<number>();
-  const [inputMethod, setInputMethod] = useState("menu");
+  const [inputMethod, setInputMethod] = useState("id");
   const [current_itemId, setCurrentItemId] = useState<number>();
   const [itemQuantity, setItemQuantity] = useState(1);
   const [orderItems, setOrderItems] = useState<orderItems[]>([]);
@@ -74,7 +73,38 @@ const Menu: React.FC = () => {
   const SOCKET_URL = (api.defaults.baseURL as string) || "http://localhost:3000";
   const { toasts, push, remove } = useToasts();
 
+  // Refs for keyboard workflow
+  const tableRef = useRef<HTMLInputElement>(null);
+  const itemRef = useRef<HTMLInputElement>(null);
+  const qtyRef = useRef<HTMLInputElement>(null);
 
+  // Focus table input on page load
+  useEffect(() => {
+    tableRef.current?.focus();
+  }, []);
+
+  // Keyboard handling
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      // Shift + Enter -> submit order
+      placeOrder();
+      setTableNumber(undefined);
+      setCurrentItemId(undefined);
+      setItemQuantity(1);
+      tableRef.current?.focus();
+    } else if (e.key === "Enter") {
+      if (document.activeElement === tableRef.current) {
+        itemRef.current?.focus();
+      } else if (document.activeElement === itemRef.current) {
+        qtyRef.current?.focus();
+      } else if (document.activeElement === qtyRef.current) {
+        addItemById();
+        setCurrentItemId(undefined);
+        setItemQuantity(1);
+        itemRef.current?.focus();
+      }
+    }
+  };
 
   // Load menu when component mounts
   useEffect(() => {
@@ -163,7 +193,6 @@ const Menu: React.FC = () => {
     if (previewItem) {
       addOrderItem(
         previewItem.id,
-        // previewItem.itemNumber,
         itemQuantity,
         previewItem.name,
         previewItem.price,
@@ -181,8 +210,12 @@ const Menu: React.FC = () => {
   };
 
   const placeOrder = async () => {
+    if (!tableNumber || orderItems.length === 0) {
+      // push("Please enter table number and add at least one item.");
+      // return;
+      setTableNumber(0);
+    }
     setPlacing(true);
-    console.log(orderItems)
     try {
       await ordersAPI.create({ items: orderItems, tableNumber, notes: "" });
       clearOrder();
@@ -192,14 +225,15 @@ const Menu: React.FC = () => {
       push("Error placing order");
     } finally {
       setPlacing(false);
+      setTableNumber(null);
     }
   };
 
-  const navigate=useNavigate()
+  const navigate = useNavigate();
 
   return (
     <>
-      <Header navigate={navigate}/>
+      <Header navigate={navigate} />
       <Toasts toasts={toasts} onClose={remove} />
 
       <div className="container mx-auto px-4 py-6">
@@ -211,9 +245,11 @@ const Menu: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
               <input
+                ref={tableRef}
                 type="number"
                 value={tableNumber ?? ""}
                 onChange={(e) => setTableNumber(parseInt(e.target.value))}
+                onKeyDown={handleKeyDown}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Table #"
               />
@@ -252,9 +288,11 @@ const Menu: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
                   <input
+                    ref={itemRef}
                     type="number"
                     value={current_itemId ?? ""}
                     onChange={(e) => itemchng(e.target.value)}
+                    onKeyDown={handleKeyDown}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter ID (1-12)"
                   />
@@ -262,10 +300,12 @@ const Menu: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
                   <input
+                    ref={qtyRef}
                     type="number"
                     min="1"
                     value={itemQuantity}
                     onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                    onKeyDown={handleKeyDown}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -282,7 +322,8 @@ const Menu: React.FC = () => {
                 <div className="mt-4">
                   <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
                     <img
-                      src={api.defaults.baseURL+previewItem.image} crossOrigin="anonymous"
+                      src={api.defaults.baseURL + previewItem.image}
+                      crossOrigin="anonymous"
                       alt={previewItem.name}
                       className="w-16 h-16 object-cover rounded"
                     />
@@ -325,7 +366,7 @@ const Menu: React.FC = () => {
                   disabled={placing}
                   className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
                 >
-                   {placing ? "Submitting.. Order" : "Submit Order"}
+                  {placing ? "Submitting.. Order" : "Submit Order"}
                 </button>
               </div>
             </div>

@@ -308,6 +308,9 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
       setError("Enter item id.");
       return;
     }
+    if(!preview){
+      await fetchPreview();
+    }
     if (quantity < 1) {
       setError("Quantity must be at least 1.");
       return;

@@ -1,12 +1,15 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Header from "./Header";
+import { Card, CardContent } from "~/components/ui/card";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import api, { menuAPI, ordersAPI } from "~/services/api";
 import type { MenuItem } from "~/types";
 import MenuItems from "~/components/waiter/MenuItem";
 import CurrentOrderItem from "~/components/waiter/CurrentOrderItem";
 import { io, type Socket } from "socket.io-client";
 import { useNavigate } from "react-router";
+import Header from "./Header";
 
 interface orderItems {
   menuItemId: string;
@@ -29,7 +32,6 @@ function useToasts() {
     (message: string) => {
       const id = Math.random().toString(36).slice(2);
       setToasts((t) => [{ id, message }, ...t]);
-      // auto-dismiss
       setTimeout(() => remove(id), 4000);
     },
     [remove]
@@ -61,7 +63,7 @@ const Menu: React.FC = () => {
   const [waiterId, setWaiterId] = useState<number>();
   const [selected, setSelected] = useState<{ [id: string]: number }>({});
   const [tableNumber, setTableNumber] = useState<number>();
-  const [inputMethod, setInputMethod] = useState("menu");
+  const [inputMethod, setInputMethod] = useState("id");
   const [current_itemId, setCurrentItemId] = useState<number>();
   const [itemQuantity, setItemQuantity] = useState(1);
   const [orderItems, setOrderItems] = useState<orderItems[]>([]);
@@ -71,7 +73,38 @@ const Menu: React.FC = () => {
   const SOCKET_URL = (api.defaults.baseURL as string) || "http://localhost:3000";
   const { toasts, push, remove } = useToasts();
 
+  // Refs for keyboard workflow
+  const tableRef = useRef<HTMLInputElement>(null);
+  const itemRef = useRef<HTMLInputElement>(null);
+  const qtyRef = useRef<HTMLInputElement>(null);
 
+  // Focus table input on page load
+  useEffect(() => {
+    tableRef.current?.focus();
+  }, []);
+
+  // Keyboard handling
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      // Shift + Enter -> submit order
+      placeOrder();
+      setTableNumber(undefined);
+      setCurrentItemId(undefined);
+      setItemQuantity(1);
+      tableRef.current?.focus();
+    } else if (e.key === "Enter") {
+      if (document.activeElement === tableRef.current) {
+        itemRef.current?.focus();
+      } else if (document.activeElement === itemRef.current) {
+        qtyRef.current?.focus();
+      } else if (document.activeElement === qtyRef.current) {
+        addItemById();
+        setCurrentItemId(undefined);
+        setItemQuantity(1);
+        itemRef.current?.focus();
+      }
+    }
+  };
 
   // Load menu when component mounts
   useEffect(() => {
@@ -160,11 +193,10 @@ const Menu: React.FC = () => {
     if (previewItem) {
       addOrderItem(
         previewItem.id,
-        // previewItem.itemNumber,
         itemQuantity,
         previewItem.name,
         previewItem.price,
-        previewItem.image
+        previewItem.image,
       );
     }
   };
@@ -178,8 +210,12 @@ const Menu: React.FC = () => {
   };
 
   const placeOrder = async () => {
+    if (!tableNumber || orderItems.length === 0) {
+      // push("Please enter table number and add at least one item.");
+      // return;
+      setTableNumber(0);
+    }
     setPlacing(true);
-    console.log(orderItems)
     try {
       await ordersAPI.create({ items: orderItems, tableNumber, notes: "" });
       clearOrder();
@@ -189,155 +225,164 @@ const Menu: React.FC = () => {
       push("Error placing order");
     } finally {
       setPlacing(false);
+      setTableNumber(null);
     }
   };
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <>
       <div className="min-h-screen flex bg-gray-100">
         <Header navigate={navigate} />
-        <Toasts toasts={toasts} onClose={remove} />
+      <Toasts toasts={toasts} onClose={remove} />
 
-        <div className="container mx-auto px-4 py-6">
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Order</h2>
+      <div className="container mx-auto px-4 py-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Order</h2>
 
-            {/* Customer Info */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
-                <input
-                  type="number"
-                  value={tableNumber ?? ""}
-                  onChange={(e) => setTableNumber(parseInt(e.target.value))}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Table #"
-                />
-              </div>
+          {/* Customer Info */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
+              <input
+                ref={tableRef}
+                type="number"
+                value={tableNumber ?? ""}
+                onChange={(e) => setTableNumber(parseInt(e.target.value))}
+                onKeyDown={handleKeyDown}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Table #"
+              />
             </div>
+          </div>
 
-            {/* Input Method Toggle */}
-            <div className="flex space-x-4 mb-6">
-              <button
-                onClick={() => setInputMethod("menu")}
-                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "menu"
+          {/* Input Method Toggle */}
+          <div className="flex space-x-4 mb-6">
+            <button
+              onClick={() => setInputMethod("menu")}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                inputMethod === "menu"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-              >
-                Menu Selection
-              </button>
-              <button
-                onClick={() => setInputMethod("id")}
-                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "id"
+              }`}
+            >
+              Menu Selection
+            </button>
+            <button
+              onClick={() => setInputMethod("id")}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                inputMethod === "id"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-              >
-                ID Entry
-              </button>
-            </div>
+              }`}
+            >
+              ID Entry
+            </button>
+          </div>
 
-            {/* ID Entry Method */}
-            {inputMethod === "id" && (
-              <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Enter Item by ID</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
-                    <input
-                      type="number"
-                      value={current_itemId ?? ""}
-                      onChange={(e) => itemchng(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter ID (1-12)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={itemQuantity}
-                      onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={addItemById}
-                      className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors"
-                    >
-                      Add Item
-                    </button>
-                  </div>
+          {/* ID Entry Method */}
+          {inputMethod === "id" && (
+            <div className="bg-gray-50 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Enter Item by ID</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
+                  <input
+                    ref={itemRef}
+                    type="number"
+                    value={current_itemId ?? ""}
+                    onChange={(e) => itemchng(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter ID (1-12)"
+                  />
                 </div>
-                {previewItem && (
-                  <div className="mt-4">
-                    <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
-                      <img
-                        src={api.defaults.baseURL+previewItem.image} crossOrigin="anonymous"
-                        alt={previewItem.name}
-                        className="w-16 h-16 object-cover rounded"
-                      />
-                      <div>
-                        <h4 className="font-semibold">{previewItem.name}</h4>
-                        <p className="text-blue-600 font-bold">₹{previewItem.price}</p>
-                      </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                  <input
+                    ref={qtyRef}
+                    type="number"
+                    min="1"
+                    value={itemQuantity}
+                    onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={addItemById}
+                    className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Add Item
+                  </button>
+                </div>
+              </div>
+              {previewItem && (
+                <div className="mt-4">
+                  <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
+                    <img
+                      src={api.defaults.baseURL + previewItem.image}
+                      crossOrigin="anonymous"
+                      alt={previewItem.name}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                    <div>
+                      <h4 className="font-semibold">{previewItem.name}</h4>
+                      <p className="text-blue-600 font-bold">₹{previewItem.price}</p>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Current Order */}
+          {orderItems.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Current Order</h3>
+                <button onClick={clearOrder} className="text-red-500 hover:text-red-700 font-medium">
+                  Clear All
+                </button>
               </div>
-            )}
-
-            {/* Current Order */}
-            {orderItems.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-bold text-gray-800">Current Order</h3>
-                  <button onClick={clearOrder} disabled={placing} className="text-red-500 hover:text-red-700 font-medium">
-                    Clear All
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {orderItems.map((item, index) => (
-                    <CurrentOrderItem
-                      key={item.menuItemId}
-                      item={item}
-                      index={index}
-                      onRemove={removeFromCurrentOrder}
-                    />
-                  ))}
-                </div>
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex justify-between items-center text-xl font-bold">
-                    <span>Total</span>
-                    <span>₹{currentOrderTotal}</span>
-                  </div>
-                  <button
-                    onClick={placeOrder}
-                    disabled={placing}
-                    className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {placing ? "Submitting.. Order" : "Submit Order"}
-                  </button>
-
-                </div>
-              </div>
-            )}
-
-            {/* Menu Selection */}
-            {inputMethod === "menu" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-                {menu.map((item) => (
-                  <MenuItems key={item.id} item={item} additems={addOrderItem} />
+              <div className="space-y-3">
+                {orderItems.map((item, index) => (
+                  <CurrentOrderItem
+                    key={item.menuItemId}
+                    item={item}
+                    index={index}
+                    onRemove={removeFromCurrentOrder}
+                  />
                 ))}
               </div>
-            )}
-          </div>
+              <div className="border-t pt-4 mt-4">
+                <div className="flex justify-between items-center text-xl font-bold">
+                  <span>Total</span>
+                  <span>₹{currentOrderTotal}</span>
+                </div>
+                <button
+                  onClick={placeOrder}
+                  disabled={placing}
+                  className="w-full mt-4 bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                >
+                  {placing ? "Submitting.. Order" : "Submit Order"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Menu Selection */}
+          {inputMethod === "menu" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+              {menu.map((item) => (
+                <MenuItems key={item.id} item={item} additems={addOrderItem} />
+              ))}
+            </div>
+          )}
         </div>
+      </div>
       </div>
     </>
   );

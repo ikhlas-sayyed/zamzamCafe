@@ -11,13 +11,8 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  MapPin,
-  AlertTriangle,
   Timer,
-  Users,
   Filter,
-  UserCheck,
-  MoreHorizontal,
 } from "lucide-react";
 import api, { ordersAPI } from "~/services/api";
 import type { Order, OrderItem } from "~/types";
@@ -25,29 +20,28 @@ import Header from "./header";
 import { useNavigate } from "react-router-dom";
 
 const SOCKET_URL = api.defaults.baseURL;
-
 type Id = string;
 function toId(x: string | number): string {
   return String(x);
 }
 
 /**
- * Dense KOT-like Chef Dashboard
- * - Compact table top for scanning many orders
- * - Right-side KOT ticket / details (bold)
- * - Preserves NEW flags and real-time socket updates
+ * ChefDashboardV2
+ * - Always show 30 tables in a grid
+ * - Table colors: Yellow (pending), Red (expired), Green (ready)
+ * - Timer counts since order.createdAt up to 15:00. If >15:00 and not ready -> expired.
+ * - Clicking table shows order(s) for that table on right-hand panel (like your second image)
+ * - Keeps socket and API wiring from original component
  */
 export default function ChefDashboard() {
-  // --- state
+  // --- state & refs (kept similar to original to preserve behavior)
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<Id | null>(null);
   const [filter, setFilter] = useState<"all" | "new" | "in-progress" | "ready">("all");
 
-  // NEW flags and seen tracking (like your original)
   const seenOrderIds = useRef<Set<Id>>(new Set());
   const seenItemIds = useRef<Set<Id>>(new Set());
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-
 
   const [newOrders, _setNewOrders] = useState<Set<Id>>(new Set());
   const [newItems, _setNewItems] = useState<Set<Id>>(new Set());
@@ -62,20 +56,19 @@ export default function ChefDashboard() {
     _setNewItems(s);
   };
 
-  // socket singleton
   const socketRef = useRef<Socket | null>(null);
 
-  // lightweight toast system
+  // toasts
   type Toast = { id: string; title?: string; message: string; type: "info" | "success" | "error" };
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const showToast = (type: Toast["type"], title: string | undefined, message: string, ttl = 4000) => {
+  const showToast = (type: Toast["type"], title: string | undefined, message: string, ttl = 3500) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const t: Toast = { id, title, message, type };
     setToasts((s) => [t, ...s]);
     setTimeout(() => setToasts((s) => s.filter((x) => x.id !== id)), ttl);
   };
 
-  // --- initial load
+  // fetch initial orders
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -83,7 +76,7 @@ export default function ChefDashboard() {
         const { data } = await ordersAPI.getAll();
         if (!mounted) return;
 
-        // mark seen sets from initial load (we don't mark anything NEW on first load)
+        // mark seen sets from initial load
         const orderIds = new Set<Id>();
         const itemIds = new Set<Id>();
         data.forEach((o) => {
@@ -98,7 +91,6 @@ export default function ChefDashboard() {
         setNewOrders(new Set());
         setNewItems(new Set());
 
-        // sort and set
         setOrders(sortOrders(data, new Set(), new Set()));
         setSelectedOrderId(data[0]?.id ?? null);
       } catch (e) {
@@ -106,13 +98,12 @@ export default function ChefDashboard() {
         showToast("error", "Load failed", "Unable to fetch orders");
       }
     })();
-
     return () => {
       mounted = false;
     };
   }, []);
 
-  // --- helper: preserve flags when refetching
+  // preserve flags on refresh
   async function refreshOrdersPreservingNewFlags() {
     try {
       const { data } = await ordersAPI.getAll();
@@ -122,7 +113,7 @@ export default function ChefDashboard() {
       const prevMap = new Map(orders.map((o) => [o.id, o] as [string, Order]));
       const incomingMap = new Map(data.map((o) => [o.id, o] as [string, Order]));
 
-      // cancellations
+      // cancellations detection
       const cancelledIds: Id[] = [];
       for (const [id, prev] of prevMap.entries()) {
         const incoming = incomingMap.get(id);
@@ -171,7 +162,7 @@ export default function ChefDashboard() {
     }
   }
 
-  // --- socket wiring (once)
+  // socket wiring (keeps existing events)
   useEffect(() => {
     const socket = io(SOCKET_URL, { transports: ["websocket"] });
     socketRef.current = socket;
@@ -195,6 +186,7 @@ export default function ChefDashboard() {
         setNewItems(newItemSet);
 
         setOrders((prev) => sortOrders([order, ...dedupeOrders(prev, nid)], newOrderSet, newItemSet));
+        setSelectedTable(String(order.tableNumber ?? "—"));
         setSelectedOrderId(nid);
 
         showToast("success", "New order", `Order #${order.orderNumber ?? order.id} received`);
@@ -250,15 +242,13 @@ export default function ChefDashboard() {
       socket.disconnect();
       socketRef.current = null;
     };
-    // intentionally mount once
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- API actions
+  // --- actions (unchanged)
   async function OrderStatusUpdate(orderId: Id, status: Order["status"]) {
     try {
       await ordersAPI.updateStatus(orderId, status);
-      // optimistic UI adjustments for cancel
       if (status === "cancelled") {
         setNewOrders((prev) => {
           const copy = new Set(prev);
@@ -275,7 +265,6 @@ export default function ChefDashboard() {
           return copy;
         });
       }
-      // server will emit and refresh; but we can also refresh proactively
       await refreshOrdersPreservingNewFlags();
     } catch (e) {
       console.error("OrderStatusUpdate failed:", e);
@@ -285,28 +274,25 @@ export default function ChefDashboard() {
 
   const updateItemStatus = async (orderId: Id, itemId: number | string, status: "pending" | "preparing" | "ready") => {
     try {
-      // optimistic small update
       setOrders((prev) =>
         sortOrders(
           prev.map((o) =>
             o.id !== orderId
               ? o
               : {
-                  ...o,
-                  items: o.items.map((it: any) =>
-                    toId((it as any).id) === toId(itemId) ? { ...it, status } : it
-                  ),
-                }
+                ...o,
+                items: o.items.map((it: any) =>
+                  toId((it as any).id) === toId(itemId) ? { ...it, status } : it
+                ),
+              }
           ),
           newOrdersRef.current,
           newItemsRef.current
         )
       );
 
-      // clear new item flag if any
       setNewItems((prev) => {
         const next = new Set(prev);
-        // delete matching keys (numeric id or synthesized)
         next.forEach((k) => {
           if (k === toId(itemId)) next.delete(k);
           if (k.startsWith(`${orderId}:`) && k.includes(String(itemId))) next.delete(k);
@@ -315,9 +301,7 @@ export default function ChefDashboard() {
         return next;
       });
 
-      // call server
       await ordersAPI.updateItemStatus(orderId, itemId, status);
-      // server emits to keep canonical state
     } catch (e) {
       console.error("updateItemStatus failed:", e);
       showToast("error", "Update failed", "Unable to update item status");
@@ -325,12 +309,10 @@ export default function ChefDashboard() {
     }
   };
 
-  // bulk helpers for speed (Prep All / Ready All)
   const bulkUpdateItems = async (orderId: Id, fromStatuses: string[], toStatus: "preparing" | "ready") => {
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
     const targets = order.items.filter((it: any) => fromStatuses.includes(it.status));
-    // optimistic update
     setOrders((prev) =>
       prev.map((o) =>
         o.id !== orderId
@@ -338,15 +320,12 @@ export default function ChefDashboard() {
           : { ...o, items: o.items.map((it: any) => (fromStatuses.includes(it.status) ? { ...it, status: toStatus } : it)) }
       )
     );
-    // fire API updates in parallel
     await Promise.all(
       targets.map((it: any) => ordersAPI.updateItemStatus(orderId, (it as any).id, toStatus).catch((e) => console.error(e)))
     );
-    // refresh canonical state
     await refreshOrdersPreservingNewFlags();
   };
 
-  // clear order-level NEW flag
   const clearOrderNewFlag = (orderId: Id) => {
     setNewOrders((prev) => {
       const copy = new Set(prev);
@@ -356,32 +335,104 @@ export default function ChefDashboard() {
     });
   };
 
-  // Helper function to check if order can be cancelled
   const canCancelOrder = (order: Order) => {
-    return !['ready', 'completed', 'cancelled'].includes(order.status);
+    return !["ready", "completed", "cancelled"].includes(order.status);
   };
 
-  // --- UI derived data
+  // --- Timer logic: internal clock tick to update UI for timers (1s)
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Helper: compute remaining/elapsed for 15min window
+  function getElapsedMs(createdAt: string) {
+    return Date.now() - new Date(createdAt).getTime();
+  }
+  function formatRemaining(createdAt: string) {
+    const elapsed = getElapsedMs(createdAt);
+    const limit = 15 * 60 * 1000; // 15 minutes
+    const rem = Math.max(limit - elapsed, 0);
+    const s = Math.floor(rem / 1000);
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m.toString().padStart(1, "0")}:${sec.toString().padStart(2, "0")}`;
+  }
+
+  // maps table number (string) -> orders[]
+  const ordersByTable = useMemo(() => {
+    const map = new Map<string, Order[]>();
+    for (const o of orders) {
+      const table = String(o.tableNumber ?? "—");
+      if (!map.has(table)) map.set(table, []);
+      map.get(table)!.push(o);
+    }
+    // ensure orders for each table are sorted by createdAt descending (latest first)
+    for (const [k, arr] of map.entries()) {
+      arr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return map;
+  }, [orders]);
+
+  // derive table status for table grid
+  function getTableStatus(tableNumber: number): { color: "none" | "yellow" | "red" | "green"; order?: Order; expired?: boolean; remaining?: string } {
+    const key = String(tableNumber);
+    const tableOrders = ordersByTable.get(key) ?? [];
+    if (tableOrders.length === 0) return { color: "none" };
+    // pick the latest order that isn't cancelled
+    const order = tableOrders.find((o) => o.status !== "cancelled") ?? tableOrders[0];
+    // determine color
+    if (order.status === "ready") {
+      return { color: "green", order, remaining: "00:00" };
+    }
+    // pending or preparing => we consider timer
+    const elapsed = getElapsedMs(order.updatedAt);
+    const limit = 15 * 60 * 1000;
+    const expired = elapsed > limit && order.status !== "ready";
+    if (expired) return { color: "red", order, expired: true, remaining: "00:00" };
+    return { color: "yellow", order, remaining: formatRemaining(order.updatedAt) };
+  }
+
+  // priorities: all tables with expired orders
+  const priorityTables = useMemo(() => {
+    const res: { table: string; order: Order }[] = [];
+    for (let i = 1; i <= 30; i++) {
+      const key = String(i);
+      const tableOrders = ordersByTable.get(key) ?? [];
+      if (tableOrders.length === 0) continue;
+      const order = tableOrders.find((o) => o.status !== "cancelled") ?? tableOrders[0];
+      const expired = getElapsedMs(order.createdAt) > 15 * 60 * 1000 && order.status !== "ready";
+      if (expired) res.push({ table: key, order });
+    }
+    return res;
+  }, [ordersByTable, now]);
+
+  // table numbers fixed 1..30
+  const TABLES = Array.from({ length: 30 }, (_, i) => i);
+
+  const navigate = useNavigate();
+
+  // derived counts
   const counts = useMemo(() => {
     const newCount = orders.filter((o) => isOrderNew(o, newOrders, newItems)).length;
     const inProg = orders.filter((o) => o.status === "preparing").length;
     const ready = orders.filter((o) => o.status === "ready").length;
-    return { newCount, inProg, ready, totalItems: orders.reduce((a, o) => a + o.items.length, 0) };
+    return { newCount, inProg, ready, totalOrders: orders.length };
   }, [orders, newOrders, newItems]);
 
+  // visibleOrders for list (respect filter and selectedTable)
   const visibleOrders = useMemo(() => {
     const sorted = sortOrders(orders, newOrders, newItems);
     if (selectedTable) {
-      return  sorted.filter((o) => (o.tableNumber ?? "—") === selectedTable);
+      return sorted.filter((o) => String(o.tableNumber ?? "—") === selectedTable);
     }
     if (filter === "all") return sorted;
     if (filter === "new") return sorted.filter((o) => isOrderNew(o, newOrders, newItems));
     if (filter === "in-progress") return sorted.filter((o) => o.status === "preparing");
     if (filter === "ready") return sorted.filter((o) => o.status === "ready");
     return sorted;
-  }, [orders, filter, newOrders, newItems]);
-
-  const navigate = useNavigate();
+  }, [orders, filter, newOrders, newItems, selectedTable]);
 
   // small helper: friendly age (e.g., 5m, 34s)
   function formatAge(iso: string) {
@@ -394,7 +445,7 @@ export default function ChefDashboard() {
     return `${h}h`;
   }
 
-  // --- render
+  // UI
   return (
     <div className="min-h-screen bg-gray-50">
       <Header navigate={navigate} />
@@ -405,22 +456,14 @@ export default function ChefDashboard() {
             key={t.id}
             role="alert"
             className={`max-w-sm w-full rounded-lg shadow-lg p-3 border flex flex-col gap-1 transition-transform transform-gpu ` +
-              (t.type === "success"
-                ? "bg-white border-green-200"
-                : t.type === "error"
-                ? "bg-white border-red-200"
-                : "bg-white border-blue-200")}
+              (t.type === "success" ? "bg-white border-green-200" : t.type === "error" ? "bg-white border-red-200" : "bg-white border-blue-200")}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
                 {t.title && <div className="font-semibold text-sm text-gray-900">{t.title}</div>}
                 <div className="text-xs text-gray-600">{t.message}</div>
               </div>
-              <button
-                aria-label="dismiss"
-                onClick={() => setToasts((s) => s.filter((x) => x.id !== t.id))}
-                className="text-gray-400 hover:text-gray-600"
-              >
+              <button aria-label="dismiss" onClick={() => setToasts((s) => s.filter((x) => x.id !== t.id))} className="text-gray-400 hover:text-gray-600">
                 ✕
               </button>
             </div>
@@ -429,23 +472,17 @@ export default function ChefDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4">
-        {/* Top: compact stats & filter tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <div className="flex items-center justify-between mb-4 gap-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold">Kitchen (KOT) — Compact View</h1>
-            <Badge className="px-2 py-1">Orders: {orders.length}</Badge>
+            <h1 className="text-xl font-bold">Kitchen Dashboard — Table Grid</h1>
+            <Badge className="px-2 py-1">Orders: {counts.totalOrders}</Badge>
             <Badge className="px-2 py-1">New: {counts.newCount}</Badge>
             <Badge className="px-2 py-1">In Prog: {counts.inProg}</Badge>
             <Badge className="px-2 py-1">Ready: {counts.ready}</Badge>
           </div>
 
           <div className="flex items-center gap-2">
-            {[
-              { key: "all", label: "All", icon: Filter },
-              { key: "new", label: "New", icon: Clock },
-              { key: "in-progress", label: "In Progress", icon: ChefHat },
-              { key: "ready", label: "Ready", icon: Package },
-            ].map((t) => {
+            {[{ key: "all", label: "All", icon: Filter }, { key: "new", label: "New", icon: Clock }, { key: "in-progress", label: "In Progress", icon: ChefHat }, { key: "ready", label: "Ready", icon: Package }].map((t) => {
               const Icon = t.icon as any;
               return (
                 <button
@@ -463,331 +500,251 @@ export default function ChefDashboard() {
           </div>
         </div>
 
-
-<div className="mb-4 flex flex-wrap gap-3">
-  {Array.from(new Set(orders.map((o) => o.tableNumber ?? "—"))).map((table) => {
-    const isSelected = selectedTable === table;
-    return (
-      <button
-        key={table}
-        onClick={
-          ()=>{
-             setSelectedTable((prev) => (prev === table ? null : table));
-             setFilter('');
-          }}
-        className={`px-6 py-3 rounded-2xl font-bold border text-lg transition-all duration-200 ${
-          isSelected
-            ? "bg-green-500 text-white border-green-500 shadow-lg"
-            : "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200 hover:scale-105"
-        }`}
-      >
-        Table {table}
-      </button>
-    );
-  })}
-</div>
-
-
-
-        {/* Two-column layout: table (left) + ticket/details (right) */}
+        {/* Main layout: left = table grid + priority column, right = details */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left: compact table/list (span 2/3) */}
-          <div className="lg:col-span-2 overflow-auto">
-            <table className="w-full text-sm table-fixed border-collapse">
-              <thead className="sticky top-0 bg-white">
-                <tr className="text-left">
-                  <th className="px-2 py-2 w-16 font-semibold">Order No</th>
-                  <th className="px-2 py-2 font-semibold">Items (bold)</th>
-                  <th className="px-2 py-2 w-28 font-semibold">Status</th>
-                  <th className="px-2 py-2 w-24 font-semibold">Age</th>
-                  <th className="px-2 py-2 w-36 font-semibold">Quick</th>
-                  <th className="px-2 py-2 w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {visibleOrders.map((order) => {
-                  if(order.status!=='cancelled'){
-                  const isNew = isOrderNew(order, newOrders, newItems);
-                  const selected = selectedOrderId === order.id;
-                  const canCancel = canCancelOrder(order);
-                  return (
-                    <React.Fragment key={order.id}>
-                      <tr
-                        className={`align-top cursor-pointer border-b text-sm ${selected ? "bg-white" : "bg-transparent"} hover:bg-gray-50`}
+          {/* Left two-thirds: Grid + orders list */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex gap-4">
+              {/* Table grid */}
+              <div className="flex-1 bg-white p-5 rounded-lg shadow">
+                <div className="mb-3 font-semibold text-lg">Tables</div>
+                <div className="grid grid-cols-6 gap-3">
+                  {TABLES.map((num) => {
+                    const status = getTableStatus(num);
+                    const isSelected = selectedTable === String(num);
+                    const base = "p-4 rounded-lg text-center font-bold text-base cursor-pointer select-none transition transform";
+                    const cls =
+                      status.color === "yellow"
+                        ? `${base} bg-yellow-400 text-yellow-900 shadow`
+                        : status.color === "red"
+                          ? `${base} bg-red-500 text-white shadow`
+                          : status.color === "green"
+                            ? `${base} bg-green-600 text-white shadow`
+                            : `${base} bg-white text-gray-700 border border-gray-200`;
+                    return (
+                      <div
+                        key={num}
                         onClick={() => {
-                          setSelectedOrderId((prev) => (prev === order.id ? null : order.id));
+                          setSelectedTable(String(num));
+                          const tableOrders = ordersByTable.get(String(num)) ?? [];
+                          setSelectedOrderId(tableOrders[0]?.id ?? null);
+                        }}
+                        className={`${cls} ${isSelected ? "ring-4 ring-blue-200 scale-105" : "hover:scale-105"}`}
+                      >
+                        <div>Table {num}</div>
+                        {status.color === "yellow" && <div className="text-xs mt-1">{status.remaining ?? "15:00"}</div>}
+                        {status.color === "red" && <div className="text-xs mt-1">! priority</div>}
+                        {status.color === "green" && <div className="text-xs mt-1">Ready</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+
+              {/* Priorities + New order preview */}
+            </div>
+
+            {/* Compact order list */}
+            {/* <div className="bg-white rounded shadow overflow-auto">
+              <div className="p-3 font-semibold border-b">Orders List</div>
+              <table className="w-full text-sm table-fixed">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-2 py-2 w-20 text-left">Order</th>
+                    <th className="px-2 py-2 text-left">Items</th>
+                    <th className="px-2 py-2 w-36">Table</th>
+                    <th className="px-2 py-2 w-28">Age</th>
+                    <th className="px-2 py-2 w-36">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleOrders.map((order) => {
+                    if (order.status === "cancelled") return null;
+                    const isNew = isOrderNew(order, newOrders, newItems);
+                    return (
+                      <tr
+                        key={order.id}
+                        onClick={() => {
+                          setSelectedTable(String(order.tableNumber ?? "—"));
+                          setSelectedOrderId(order.id);
                           clearOrderNewFlag(order.id);
                         }}
+                        className="cursor-pointer hover:bg-gray-50"
                       >
                         <td className="px-2 py-2 align-middle">
-                          <div className="text-lg font-bold">#{order.orderNumber ?? "—"}</div>
-                          {isNew && <div className="mt-1"><Badge className="bg-red-100 text-red-700">NEW</Badge></div>}
+                          <div className="font-bold">#{order.orderNumber ?? order.id}</div>
+                          {isNew && <div className="text-xs text-red-600">NEW</div>}
                         </td>
-
                         <td className="px-2 py-2 align-middle">
-                          {/* compact item summary: show first two bold, then +N */}
                           <div className="text-sm">
-                            {order.items.slice(0, 2).map((it, idx) => (
-                              <span key={idx} className="block">
-                                <span className="font-semibold">{it.quantity}x {it.name}</span>
-                              </span>
+                            {order.items.slice(0, 2).map((it) => (
+                              <div key={toId(it.id ?? `${order.id}:${it.name}`)} className="font-semibold">
+                                {it.quantity} × {it.name}
+                              </div>
                             ))}
-                            {order.items.length > 2 && (
-                              <div className="text-xs text-gray-500">+{order.items.length - 2} more</div>
-                            )}
+                            {order.items.length > 2 && <div className="text-xs text-gray-500">+{order.items.length - 2} more</div>}
                           </div>
                         </td>
-
                         <td className="px-2 py-2 align-middle">
-                          <OrderStatusBadge order={order} compact />
+                          <div className="font-semibold">Table {order.tableNumber ?? "—"}</div>
                         </td>
-
                         <td className="px-2 py-2 align-middle">
                           <div className="text-sm font-medium">{formatAge(order.createdAt)}</div>
                           <div className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleTimeString()}</div>
                         </td>
-
                         <td className="px-2 py-2 align-middle">
-                          <div className="flex gap-1">
-                          {canCancel && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                bulkUpdateItems(order.id, ["pending"], "preparing");
-                                clearOrderNewFlag(order.id);
-                              }}
-                              className="px-2 py-1 rounded text-xs bg-yellow-500 text-white font-semibold"
-                            >
-                              Prep All
-                            </button>
+                          <div className="flex gap-2">
+                            {canCancelOrder(order) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  bulkUpdateItems(order.id, ["pending"], "preparing");
+                                  clearOrderNewFlag(order.id);
+                                }}
+                                className="px-2 py-1 rounded text-xs bg-yellow-500 text-white"
+                              >
+                                Prep All
+                              </button>
                             )}
-
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 bulkUpdateItems(order.id, ["preparing"], "ready");
                                 clearOrderNewFlag(order.id);
                               }}
-                              className="px-2 py-1 rounded text-xs bg-green-600 text-white font-semibold"
+                              className="px-2 py-1 rounded text-xs bg-green-600 text-white"
                             >
                               Ready All
                             </button>
-
-                            {canCancel && (
+                            {canCancelOrder(order) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   OrderStatusUpdate(order.id, "cancelled");
                                 }}
-                                className="px-2 py-1 rounded text-xs bg-red-600 text-white font-medium"
+                                className="px-2 py-1 rounded text-xs bg-red-600 text-white"
                               >
                                 Cancel
                               </button>
                             )}
                           </div>
                         </td>
-
-                        <td className="px-2 py-2 align-middle text-right">
-                          {selected ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                        </td>
                       </tr>
+                    );
+                  })}
+                  {visibleOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-gray-500">
+                        No orders.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div> */}
+          </div>
 
-                      {/* expanded compact detail row (dense) */}
-                      {selected && (
-                        <tr className="bg-white">
-                          <td colSpan={6} className="px-2 py-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {/* Left: items (bold) */}
-                              <div>
-                                <div className="text-sm font-semibold mb-2">Items (KOT)</div>
-                                <div className="space-y-2">
-                                  {order.items.map((it: any) => {
-                                    const itemKey = toId((it as any).id ?? `${order.id}:${it.name}:${it.quantity}:${(it as any).price ?? ""}`);
-                                    const isNewItem = newItems.has(itemKey);
-                                    return (
-                                      <div key={itemKey} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                        <div>
-                                          <div className="font-semibold">{it.quantity} × {it.name}</div>
-                                          <div className="text-xs text-gray-600">{it.notes ?? ""}</div>
-                                          {isNewItem && <div className="text-xs mt-1"><Badge className="bg-red-100 text-red-700">NEW</Badge></div>}
-                                        </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                          {it.status === "pending" && (
-                                            <button
-                                              onClick={() => updateItemStatus(order.id, (it as any).id, "preparing")}
-                                              className="px-2 py-1 rounded text-xs bg-blue-600 text-white font-semibold"
-                                            >
-                                              Prepare
-                                            </button>
-                                          )}
-                                          {it.status === "preparing" && (
-                                            <button
-                                              onClick={() => updateItemStatus(order.id, (it as any).id, "ready")}
-                                              className="px-2 py-1 rounded text-xs bg-green-600 text-white font-semibold"
-                                            >
-                                              Mark Ready
-                                            </button>
-                                          )}
-                                          {it.status === "ready" && (
-                                            <div className="text-xs text-green-700 font-semibold flex items-center gap-1">
-                                              <CheckCircle className="w-4 h-4" /> READY
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+          {/* Right column: details for selected table / order */}
+          {selectedTable ? (
+            (() => {
+              const tableOrders = ordersByTable.get(selectedTable) ?? [];
+              if (tableOrders.length === 0) {
+                return <div className="text-center text-gray-500">No orders for Table {selectedTable}</div>;
+              }
 
-                              {/* Right: order meta & actions (bold) */}
-                              <div>
-                                <div className="text-sm font-semibold mb-2">Order Info</div>
-                                <div className="bg-gray-50 p-3 rounded space-y-2">
-                                  <div className="font-semibold">Order #{order.orderNumber ?? order.id}</div>
-                                  <div className="text-sm"><span className="font-semibold">Table:</span> {order.tableNumber ?? "—"}</div>
-                                  <div className="text-sm"><span className="font-semibold">Waiter:</span> {order.waiter?.username ?? "—"}</div>
-                                  <div className="text-sm"><span className="font-semibold">Total Items:</span> {order.items.length}</div>
-                                  <div className="text-sm"><span className="font-semibold">Created:</span> {new Date(order.createdAt).toLocaleString()}</div>
-                                  <div className="pt-2 flex gap-2">
-                                    {canCancel && (
-                                      <button
-                                        onClick={() => OrderStatusUpdate(order.id, "cancelled")}
-                                        className="flex-1 px-2 py-1 rounded bg-red-600 text-white font-semibold"
-                                      >
-                                        <XCircle className="inline-block w-4 h-4 mr-1" /> Cancel
+              // Sort orders by createdAt descending (latest first)
+              const sortedOrders = [...tableOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+              return (
+                <div className="space-y-4">
+                  {sortedOrders.map((order) => {
+                    const canCancel = canCancelOrder(order);
+                    const elapsed = getElapsedMs(order.createdAt);
+                    const expired = elapsed > 15 * 60 * 1000 && order.status !== "ready";
+
+                    return (
+                      <Card key={order.id} className="shadow-md">
+                        <CardHeader className="flex items-center justify-between">
+                          <div>
+                            <div className="text-lg font-bold">
+                              Table {selectedTable} — Order #{order.orderNumber ?? order.id}
+                            </div>
+                            <div className="text-sm text-gray-600">{new Date(order.createdAt).toLocaleString()}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {order.status === "ready" ? (
+                              <Badge className="bg-green-100 text-green-800 px-3 py-1">READY</Badge>
+                            ) : expired ? (
+                              <Badge className="bg-red-100 text-red-800 px-3 py-1">priority</Badge>
+                            ) : (
+                              <Badge className="bg-yellow-100 text-yellow-800 px-3 py-1">{formatRemaining(order.createdAt)}</Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-3 space-y-3">
+                          <div className="space-y-2">
+                            {order.items.map((it) => {
+                              const itemKey = toId(it.id ?? `${order.id}:${it.name}:${it.quantity}:${it.price ?? ""}`);
+                              const isNewItem = (newItems instanceof Set) && newItems.has(itemKey);
+                              return (
+                                <div key={itemKey} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                  <div>
+                                    <div className="font-semibold">{it.quantity} × {it.name}</div>
+                                    <div className="text-xs text-gray-500">{it.notes ?? ""}</div>
+                                    {isNewItem && <div className="text-xs text-red-600">NEW</div>}
+                                  </div>
+                                  <div className="text-right">
+                                    {it.status === "pending" && (
+                                      <button onClick={() => updateItemStatus(order.id, (it as any).id, "preparing")} className="px-2 py-1 rounded bg-blue-600 text-white text-xs">
+                                        Prepare
                                       </button>
                                     )}
-                                  {canCancel && (
-                                    <button
-                                      onClick={() => bulkUpdateItems(order.id, ["pending"], "preparing")}
-                                      className="px-3 py-1 rounded bg-yellow-500 text-white font-semibold"
-                                    >
-                                      Prep All
-                                    </button>
-                                  )}
+                                    {it.status === "preparing" && (
+                                      <button onClick={() => updateItemStatus(order.id, (it as any).id, "ready")} className="px-2 py-1 rounded bg-green-600 text-white text-xs">
+                                        Mark Ready
+                                      </button>
+                                    )}
+                                    {it.status === "ready" && <div className="text-xs text-green-700 font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4" /> READY</div>}
                                   </div>
                                 </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                  }})}
-                {visibleOrders.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-600">
-                      No orders matching this filter.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                              );
+                            })}
+                          </div>
 
-          {/* Right: compact KOT ticket / details for selected order (also visible on small screens below) */}
-          <div className="h-full">
-            {selectedOrderId ? (
-              (() => {
-                const order = orders.find((o) => o.id === selectedOrderId);
-                if (!order) return <div className="p-4 bg-white rounded shadow">Order not found</div>;
-                const canCancel = canCancelOrder(order);
-                return (
-                  <Card className="shadow-md">
-                    <CardHeader className="flex items-center justify-between">
-                      <div>
-                        <div className="text-lg font-bold">KOT — Table {order.tableNumber ?? "—"}</div>
-                        <div className="text-sm text-gray-600">Order #{order.orderNumber ?? order.id}</div>
-                      </div>
-                      <div>
-                        <OrderStatusBadge order={order} />
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-3 space-y-3">
-                      <div className="space-y-2">
-                        {order.items.map((it: any) => {
-                          const itemKey = toId((it as any).id ?? `${order.id}:${it.name}:${it.quantity}:${(it as any).price ?? ""}`);
-                          const isNewItem = newItems.has(itemKey);
-                          return (
-                            <div key={itemKey} className="flex justify-between items-center">
-                              <div>
-                                <div className="font-semibold text-sm">{it.quantity} × {it.name}</div>
-                                <div className="text-xs text-gray-500">{it.notes ?? ""}</div>
-                                {isNewItem && <div className="text-xs mt-1"><Badge className="bg-red-100 text-red-700">NEW</Badge></div>}
-                              </div>
-                              <div className="text-right">
-                                {it.status === "pending" && (
-                                  <button
-                                    onClick={() => updateItemStatus(order.id, (it as any).id, "preparing")}
-                                    className="px-2 py-1 rounded bg-blue-600 text-white text-xs font-semibold"
-                                  >
-                                    Prepare
-                                  </button>
-                                )}
-                                {it.status === "preparing" && (
-                                  <button
-                                    onClick={() => updateItemStatus(order.id, (it as any).id, "ready")}
-                                    className="px-2 py-1 rounded bg-green-600 text-white text-xs font-semibold"
-                                  >
-                                    Mark Ready
-                                  </button>
-                                )}
-                                {it.status === "ready" && <div className="text-xs text-green-700 font-semibold">READY</div>}
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                                              </div>
-
-                      {/* Order-level actions */}
-                      <div className="pt-3 flex gap-2">
-                        {canCancel && (
-                          <button
-                            onClick={() => OrderStatusUpdate(order.id, "cancelled")}
-                            className="flex-1 px-2 py-1 rounded bg-red-600 text-white font-semibold flex items-center justify-center gap-1"
-                          >
-                            <XCircle className="w-4 h-4" /> Cancel Order
-                          </button>
-                        )}
-                      {canCancel && (
-                        <button
-                          onClick={() => bulkUpdateItems(order.id, ["pending"], "preparing")}
-                          className="flex-1 px-2 py-1 rounded bg-yellow-500 text-white font-semibold"
-                        >
-                          Prep All
-                        </button>
-                      )}
-                          {canCancel && (
-                        <button
-                          onClick={() => bulkUpdateItems(order.id, ["preparing"], "ready")}
-                          className="flex-1 px-2 py-1 rounded bg-green-600 text-white font-semibold"
-                        >
-                          Ready All
-                        </button>
-                          )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()
-            ) : (
-              <div className="p-4 bg-white rounded shadow text-center text-gray-500">Select an order to view details</div>
-            )}
-          </div>
+                          <div className="pt-2 flex gap-2">
+                            {canCancel && (
+                              <button onClick={() => bulkUpdateItems(order.id, ["pending"], "preparing")} className="px-3 py-1 rounded bg-yellow-500 text-white font-semibold">
+                                Prep All
+                              </button>
+                            )}
+                            {canCancel && (
+                              <button onClick={() => bulkUpdateItems(order.id, ["preparing"], "ready")} className="px-3 py-1 rounded bg-green-600 text-white font-semibold">
+                                Ready All
+                              </button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          ) : (
+            <div className="text-center text-gray-500">Select a table to view details</div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ----------------- Helper Components / Functions -----------------
+/* -------------------- Helpers -------------------- */
 
-function OrderStatusBadge({ order, compact }: { order: Order; compact?: boolean }) {
+function OrderStatusBadge({ order, compact }: { order: any; compact?: boolean }) {
   let color = "gray";
-  let label = order.status.toUpperCase();
+  let label = order.status?.toUpperCase?.() ?? "—";
   if (order.status === "pending") color = "yellow";
   else if (order.status === "preparing") color = "blue";
   else if (order.status === "ready") color = "green";
@@ -796,21 +753,10 @@ function OrderStatusBadge({ order, compact }: { order: Order; compact?: boolean 
 
   return (
     <Badge
-      className={`px-2 py-1 text-xs font-semibold ${
-        color === "yellow"
-          ? "bg-yellow-100 text-yellow-800"
-          : color === "blue"
-          ? "bg-blue-100 text-blue-800"
-          : color === "green"
-          ? "bg-green-100 text-green-800"
-          : color === "purple"
-          ? "bg-purple-100 text-purple-800"
-          : color === "red"
-          ? "bg-red-100 text-red-800"
-          : "bg-gray-100 text-gray-800"
-      }`}
+      className={`px-2 py-1 text-xs font-semibold ${color === "yellow" ? "bg-yellow-100 text-yellow-800" : color === "blue" ? "bg-blue-100 text-blue-800" : color === "green" ? "bg-green-100 text-green-800" : color === "purple" ? "bg-purple-100 text-purple-800" : color === "red" ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-800"
+        }`}
     >
-      {compact ? label[0] : label}
+      {compact ? label?.[0] ?? label : label}
     </Badge>
   );
 }
@@ -819,20 +765,17 @@ function isOrderNew(order: Order, newOrders: Set<Id>, newItems: Set<Id>) {
   if (newOrders.has(order.id)) return true;
   for (const it of order.items) {
     const key = toId(it.id ?? `${order.id}:${it.name}:${it.quantity}:${it.price ?? ""}`);
-    if (newItems.has(key)) return true;
+    if ((newItems instanceof Set) && newItems.has(key)) return true;
   }
   return false;
 }
 
 function sortOrders(orders: Order[], newOrders: Set<Id>, newItems: Set<Id>) {
   return [...orders].sort((a, b) => {
-    // new orders first
     const aNew = isOrderNew(a, newOrders, newItems);
     const bNew = isOrderNew(b, newOrders, newItems);
     if (aNew && !bNew) return -1;
     if (!aNew && bNew) return 1;
-
-    // then by createdAt descending
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
@@ -841,7 +784,7 @@ function dedupeOrders(orders: Order[], newId: Id) {
   const seen = new Set<Id>();
   const res: Order[] = [];
   for (const o of orders) {
-    if (o.id === newId) continue; // skip duplicate of newly added order
+    if (o.id === newId) continue;
     if (!seen.has(o.id)) {
       seen.add(o.id);
       res.push(o);

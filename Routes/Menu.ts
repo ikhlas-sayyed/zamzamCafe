@@ -69,7 +69,7 @@ router.get('/admin', authenticateToken, authorizeRole(['admin']), asyncHandler(a
 // Get menu item by ID
 router.get('/:id', asyncHandler(async (req: express.Request, res: express.Response) => {
   const menuItem = await prisma.menuItem.findFirst({
-    where: { id: parseInt(req.params.id as string) }
+    where: { itemNumber: parseInt(req.params.id as string) }
   })
 
   if (!menuItem) {
@@ -124,6 +124,44 @@ router.post('/',
       success: true,
       message: 'Menu item created successfully',
       data: menuItem
+    });
+  })
+);
+
+router.post('/bulk',
+
+  asyncHandler(async (req: express.Request, res: express.Response) => {
+
+    const MenuItem = req.body;
+
+  if (!Array.isArray(MenuItem)) {
+    return res.status(400).json({ error: "Expected an array of products" });
+  }
+    for (const m of MenuItem) {
+    const { name, description, price,url, category, id } =m;
+    const exists = await prisma.menuItem.findFirst({
+      where: { itemNumber: parseInt(id as string) }
+    });
+
+    if (exists) {
+      return res.status(400).json({ error: "ID already exists" });
+    }
+
+    const menuItem = await prisma.menuItem.create({
+      data: {
+        itemNumber: parseInt(id as string),
+        name,
+        description,
+        price: parseFloat(price),
+        category,
+        image: url,
+      }
+    });
+  }
+
+    res.status(201).json({
+      success: true,
+      message: 'Menu item created successfully',
     });
   })
 );
