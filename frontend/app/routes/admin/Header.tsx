@@ -18,6 +18,12 @@ export default function Header({navigate}:{navigate:(agr0:string)=>void}) {
             <ShoppingCart className="w-5 h-5" />
             Orders
           </button>
+          <button
+           onClick={()=>{navigate('/admin/tables')}}
+           className="flex items-center gap-2 text-gray-700 hover:text-blue-600">
+            <ShoppingCart className="w-5 h-5" />
+            Tables
+          </button>
           <button 
           onClick={()=>{navigate('/admin/addOrder')}}
           className="flex items-center gap-2 text-gray-700 hover:text-blue-600">

@@ -85,7 +85,7 @@ const Menu: React.FC = () => {
 
   // Keyboard handling
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && e.shiftKey) {
+    if (e.key === "Enter" && (current_itemId==null||current_itemId=='')&&document.activeElement!==tableRef.current) {
       // Shift + Enter -> submit order
       placeOrder();
       setTableNumber(undefined);
@@ -210,7 +210,7 @@ const Menu: React.FC = () => {
   };
 
   const placeOrder = async () => {
-    if (!tableNumber || orderItems.length === 0) {
+    if (!tableNumber || orderItems.length >-1) {
       // push("Please enter table number and add at least one item.");
       // return;
       setTableNumber(0);

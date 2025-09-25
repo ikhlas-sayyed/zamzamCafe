@@ -116,8 +116,8 @@ export function OrdersPage({
   onViewOrder: (order: Order) => void;
   orders: Order[];
   setIndex: (i: number) => void;
-  setOrderId:(arg0:number) =>void;
-  updateOrder: ()=>void;
+  setOrderId: (arg0: number) => void;
+  updateOrder: () => void;
 }) {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,6 +152,38 @@ export function OrdersPage({
                     <StatusBadge status={order.status} />
                   </div>
                 </CardHeader>
+                <ul className="space-y-2 px-4">
+                  {order.items.map((o, i) => {
+                    let statusStyles = "bg-gray-400 text-white"; // default pending
+                    let statusLetter = "P";
+
+                    if (o.status === "ready") {
+                      statusStyles = "bg-green-500 text-white";
+                      statusLetter = "R";
+                    } else if (o.status === "preparing") {
+                      statusStyles = "bg-yellow-500 text-white";
+                      statusLetter = "P"; // still P but yellow
+                    }
+
+                    return (
+                      <li key={i} className="flex items-center gap-2 font-semibold text-gray-800">
+                        {/* Status Circle */}
+                        <span
+                          className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${statusStyles}`}
+                        >
+                          {statusLetter}
+                        </span>
+
+                        {/* Item name + qty */}
+                        {o.name} x {o.quantity}
+                      </li>
+                    );
+                  })}
+                </ul>
+
+
+
+
 
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center py-3 border-t border-gray-100">
@@ -166,8 +198,8 @@ export function OrdersPage({
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      disabled={order.status==='cancelled' || order.status==='completed'}
-                      onClick={()=>{updateOrder(order.id,'cancelled')}}
+                      disabled={order.status === 'cancelled' || order.status === 'completed'}
+                      onClick={() => { updateOrder(order.id, 'cancelled') }}
                       size="sm"
                       className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
                     >
@@ -175,9 +207,9 @@ export function OrdersPage({
                     </Button>
                     <Button
                       variant="outline"
-                      disabled={order.status==='cancelled' || order.status==='completed'}
+                      disabled={order.status === 'cancelled' || order.status === 'completed'}
                       size="sm"
-                      onClick={()=>{updateOrder(order.id,'completed')}}
+                      onClick={() => { updateOrder(order.id, 'completed') }}
                       className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
                     >
                       <CheckCircle className="w-4 h-4 mr-2" /> Complete
@@ -192,7 +224,7 @@ export function OrdersPage({
                         setOrderId(order.id);
                       }}
                     >
-                      <Eye className="w-4 h-4 mr-2" /> View
+                      <Eye className="w-4 h-4 mr-2" /> add item
                     </Button>
                   </div>
                 </CardContent>
@@ -286,7 +318,7 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
         const list = await menuAPI.getAll();
         found = list.find((m: any) => String(m.id) === String(itemId) || String(m._id) === String(itemId));
       }
-       
+
       if (found) {
         setPreview(found as MenuItem);
       } else {
@@ -308,7 +340,7 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
       setError("Enter item id.");
       return;
     }
-    if(!preview){
+    if (!preview) {
       await fetchPreview();
     }
     if (quantity < 1) {
@@ -325,7 +357,7 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
         ? { ...preview, quantity }
         : { id: Number(itemId), menuItemId: itemId, quantity };
 
-        console.log(payload)
+      console.log(payload)
 
       await ordersAPI.addItem(orderId, payload as MenuItem);
 
@@ -416,11 +448,11 @@ export function OrderDetailPage({
   updateOrder,
 }: {
   order: Order;
-  orderIndex:number
+  orderIndex: number
   onBack: () => void;
-  orders:Order[];
-  OpenModel:(arg0:boolean)=>void;
-  updateOrder:()=>void;
+  orders: Order[];
+  OpenModel: (arg0: boolean) => void;
+  updateOrder: () => void;
 }) {
   const [items, setItems] = useState(order.items as any[]);
   const [editedItems, setEditedItems] = useState<EditedItem[]>([]);
@@ -450,7 +482,7 @@ export function OrderDetailPage({
             (curr) =>
               curr +
               (newQty - updated[existingIndex].quantity) *
-                (items[index].price || 0)
+              (items[index].price || 0)
           );
           updated[existingIndex] = { ...updated[existingIndex], quantity: newQty };
         } else {
@@ -529,7 +561,7 @@ export function OrderDetailPage({
                       variant="outline"
                       onClick={() => updateQty(item.id as number, -1, i)}
                       className="h-10 w-10 rounded-full hover:bg-red-50 hover:border-red-200"
-                      disabled={((qty ?? 1) <= 1)&&(order.status==='cancelled' || order.status==='completed')}
+                      disabled={((qty ?? 1) <= 1) && (order.status === 'cancelled' || order.status === 'completed')}
                     >
                       <Minus className="w-4 h-4" />
                     </Button>
@@ -539,7 +571,7 @@ export function OrderDetailPage({
                     <Button
                       size="icon"
                       variant="outline"
-                      disabled={order.status==='cancelled' || order.status==='completed'}
+                      disabled={order.status === 'cancelled' || order.status === 'completed'}
                       onClick={() => updateQty(item.id as number, 1, i)}
                       className="h-10 w-10 rounded-full hover:bg-green-50 hover:border-green-200"
                     >
@@ -563,16 +595,16 @@ export function OrderDetailPage({
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="outline"
-                onClick={()=>{updateOrder(order.id,'cancelled')}}
-                disabled={order.status==='cancelled' || order.status==='completed'}
+                onClick={() => { updateOrder(order.id, 'cancelled') }}
+                disabled={order.status === 'cancelled' || order.status === 'completed'}
                 className="text-red-600 border-red-200 hover:bg-red-50 px-6"
               >
                 <XCircle className="w-4 h-4 mr-2" /> Cancel
               </Button>
               <Button
                 variant="outline"
-                disabled={order.status==='cancelled' || order.status==='completed'}
-                onClick={()=>{updateOrder(order.id,'completed')}}
+                disabled={order.status === 'cancelled' || order.status === 'completed'}
+                onClick={() => { updateOrder(order.id, 'completed') }}
                 className="text-green-600 border-green-200 hover:bg-green-50 px-6"
               >
                 <CheckCircle className="w-4 h-4 mr-2" /> Complete
@@ -585,13 +617,13 @@ export function OrderDetailPage({
                   Save Changes
                 </Button>
               )}
-                            <Button
+              <Button
                 variant="outline"
-                onClick={()=>{OpenModel(true)}}
-                disabled={order.status==='cancelled' || order.status==='completed'}
+                onClick={() => { OpenModel(true) }}
+                disabled={order.status === 'cancelled' || order.status === 'completed'}
                 className="text-green-600 border-green-200 hover:bg-green-50 px-6"
               >
-           add new item
+                add new item
               </Button>
             </div>
           </CardContent>
@@ -609,7 +641,7 @@ export default function OrdersWrapper() {
   const prevOrdersRef = useRef<Order[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
-  const [orderId,setOrderId] = useState<number>();
+  const [orderId, setOrderId] = useState<number>();
   const [isOpen, setIsOpen] = useState(false);
 
   // Optional callback: update your UI after adding an item
@@ -713,14 +745,16 @@ export default function OrdersWrapper() {
   );
 
   // socket setup
-    async function OrderStatusUpdate(orderId,status){
-      try{
-        ordersAPI.updateStatus(orderId,status)
-      }catch{(e:any)=>{
+  async function OrderStatusUpdate(orderId, status) {
+    try {
+      ordersAPI.updateStatus(orderId, status)
+    } catch {
+      (e: any) => {
         console.log(e);
-        push('Order '+status+' failed');
-      }}
+        push('Order ' + status + ' failed');
+      }
     }
+  }
   useEffect(() => {
     const s = io(SOCKET_URL, {
       transports: ["websocket"],
@@ -752,14 +786,14 @@ export default function OrdersWrapper() {
     };
   }, [SOCKET_URL, refreshAndDiff]);
 
-  const navigate=useNavigate()
+  const navigate = useNavigate()
   return (
     <>
-    <Header navigate={navigate}/>
+      <Header navigate={navigate} />
       <Toasts toasts={toasts} onClose={remove} />
 
       <AddItemToOrderModal
-        orderId={orderId }
+        orderId={orderId}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onAdded={handleItemAdded}
@@ -776,7 +810,7 @@ export default function OrdersWrapper() {
         />
       ) : (
         <OrdersPage
-          onViewOrder={setSelectedOrder}
+          onViewOrder={setIsOpen}
           updateOrder={OrderStatusUpdate}
           orders={orders}
           setIndex={(i) => setOrderIndex(i)}

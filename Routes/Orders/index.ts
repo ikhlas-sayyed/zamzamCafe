@@ -31,7 +31,7 @@ const validateOrder = [
   body('items').isArray({ min: 1 }).withMessage('Items must be a non-empty array'),
   body('items.*.menuItemId').notEmpty().withMessage('Menu item ID is required'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1'),
-  body('tableNumber').optional().isInt({ min: 1 }).withMessage('Table number must be a positive integer'),
+  body('tableNumber').optional().isInt({ min: 0 }).withMessage('Table number must be a positive integer'),
 ];
 
 const validateStatusUpdate = [
@@ -62,8 +62,8 @@ router.get(
     if (user.role === "waiter") {
       query.waiterId = user.userId;
     }
-    if (user.role ==="chef") {
-       query.chef=true;
+    if (user.role === "chef") {
+      query.chef = true;
     }
 
     const todayStart = startOfDay(new Date());
@@ -72,7 +72,7 @@ router.get(
     const orders = await prisma.order.findMany({
       where: {
         ...(query.waiterId && { waiterId: query.waiterId }),
-        ...(query.chef && { status: {notIn:['cancelled','completed']} }),
+        ...(query.chef && { status: { notIn: ['cancelled', 'completed'] } }),
         createdAt: {
           gte: todayStart,
           lt: todayEnd,
@@ -352,21 +352,42 @@ router.post('/', authenticateToken, authorizeRole(['waiter', 'admin']), validate
   let cashCollected = false
   cashCollected = user.role === "admin" ? true : false;
   const orderNumber = generateOrderNumber().toString();
-  const order = await prisma.order.create({
-    data: {
-      status: 'pending',
-      waiterId: parseInt(user.userId as string),
-      totalAmount,
-      tableNumber: tableNumber || 0,
-      orderNumber,
-      cashCollected,
-      notes,
-      items: {
-        create: orderItems
-      }
+// Fetch all today's orders (or just table-specific)
+const ordersToday = await prisma.order.findMany({
+  where: {
+    tableNumber: tableNumber === 0 ? 0 : { not: 0 },
+    createdAt: {
+      gte: startOfDay(new Date()),
+      lte: endOfDay(new Date()),
     },
-    include: { items: true }
-  })
+  },
+  select: { orderNumber: true },
+});
+
+// Find the numeric max
+const lastOrderNumber = ordersToday.length
+  ? Math.max(...ordersToday.map(o => parseInt(o.orderNumber)))
+  : 0;
+
+// Increment
+const nextOrderNumber = lastOrderNumber + 1;
+
+// Create order
+let order = await prisma.order.create({
+  data: {
+    status: "pending",
+    waiterId: parseInt(user.userId as string),
+    totalAmount,
+    tableNumber: tableNumber || 0,
+    orderNumber: nextOrderNumber.toString(),
+    cashCollected,
+    notes,
+    items: { create: orderItems },
+  },
+  include: { items: true },
+});
+
+
 
   const io = (req as any).io;
   let waiterId = user.role === "admin" ? 0 : user.userId;

@@ -40,6 +40,9 @@ type Pages = {
   "/admin/addOrder": {
     params: {};
   };
+  "/admin/tables": {
+    params: {};
+  };
   "/admin/users": {
     params: {};
   };
@@ -51,7 +54,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/login" | "/waiter" | "/waiter/orders" | "/chef" | "/admin" | "/admin/insights" | "/admin/menu" | "/admin/orders" | "/admin/addOrder" | "/admin/users" | "/chef/menu";
+    page: "/" | "/login" | "/waiter" | "/waiter/orders" | "/chef" | "/admin" | "/admin/insights" | "/admin/menu" | "/admin/orders" | "/admin/addOrder" | "/admin/tables" | "/admin/users" | "/chef/menu";
   };
   "routes/home.tsx": {
     id: "routes/home";
@@ -92,6 +95,10 @@ type RouteFiles = {
   "routes/admin/addOrder.tsx": {
     id: "routes/admin/addOrder";
     page: "/admin/addOrder";
+  };
+  "routes/admin/tables.tsx": {
+    id: "routes/admin/tables";
+    page: "/admin/tables";
   };
   "routes/admin/users.tsx": {
     id: "routes/admin/users";
