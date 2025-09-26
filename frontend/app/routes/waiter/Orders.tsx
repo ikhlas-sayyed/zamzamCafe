@@ -142,11 +142,11 @@ export function OrdersPage({
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-lg font-bold text-gray-900">
-                        Order #{order.orderNumber}
+                        Table #{order.tableNumber}
                       </CardTitle>
                       <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
                         <MapPin className="w-4 h-4" />
-                        <span>Table {order.tableNumber}</span>
+                        <span>Order {order.orderNumber}</span>
                       </div>
                     </div>
                     <StatusBadge status={order.status} />
@@ -198,7 +198,7 @@ export function OrdersPage({
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      disabled={order.status === 'cancelled' || order.status === 'completed'}
+                      disabled={order.status === 'cancelled' || order.status === 'completed' || order.status === 'ready' || order.status === 'preparing'}
                       onClick={() => { updateOrder(order.id, 'cancelled') }}
                       size="sm"
                       className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
@@ -269,7 +269,7 @@ interface Props {
  *  - onAdded: optional callback invoked with the payload that was sent after success
  */
 
-const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdded }) => {
+const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdded, menu }) => {
   const [itemId, setItemId] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [preview, setPreview] = useState<MenuItem | null>(null);
@@ -277,8 +277,13 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const itemInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      // Focus on Item ID input when modal opens
+      setTimeout(() => itemInputRef.current?.focus(), 100);
+    } else {
       setItemId("");
       setQuantity(1);
       setPreview(null);
@@ -296,52 +301,19 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
     }
 
     setLoadingPreview(true);
-    try {
-      let found: any = null;
-
-      // Try single-item endpoint if available
-      // (some projects expose menuAPI.getById or menuAPI.get)
-      // we'll attempt to call getById if it exists, otherwise fallback to getAll
-      // @ts-ignore
-      if (typeof menuAPI.getById === "function") {
-        try {
-          // @ts-ignore
-          found = await menuAPI.getById(itemId);
-        } catch (err) {
-          // ignore and fallback
-          found = null;
-        }
-      }
-
-      if (!found) {
-        // fallback to fetching all and searching locally
-        const list = await menuAPI.getAll();
-        found = list.find((m: any) => String(m.id) === String(itemId) || String(m._id) === String(itemId));
-      }
-
-      if (found) {
-        setPreview(found as MenuItem);
-      } else {
-        setPreview(null);
-        setError("Item not found in menu.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to fetch item preview.");
-    } finally {
-      setLoadingPreview(false);
-    }
+    let p = menu.find((obj) => obj.itemNumber === Number(itemId)) ?? null;
+    setPreview(p);
+    setLoadingPreview(false);
+    return;
   };
 
   const handleAdd = async () => {
+    await fetchPreview();
     setError(null);
 
     if (!itemId) {
       setError("Enter item id.");
       return;
-    }
-    if (!preview) {
-      await fetchPreview();
     }
     if (quantity < 1) {
       setError("Quantity must be at least 1.");
@@ -350,20 +322,16 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
 
     setAdding(true);
     try {
-      // Build payload: prefer preview fields if we have them; otherwise send minimal payload
-      // The backend signature you gave was: ordersAPI.addItem(id: string, items: MenuItem)
-      // We'll attach `quantity` to the object so backend can use it.
       const payload: any = preview
         ? { ...preview, quantity }
         : { id: Number(itemId), menuItemId: itemId, quantity };
 
-      console.log(payload)
+      console.log(payload);
 
       await ordersAPI.addItem(orderId, payload as MenuItem);
 
       if (onAdded) onAdded(payload);
 
-      // Reset and close modal
       setItemId("");
       setQuantity(1);
       setPreview(null);
@@ -384,7 +352,9 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
         <CardContent className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Add Item to Order</h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">Close</button>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              Close
+            </button>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -395,18 +365,55 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Item ID</label>
-              <input value={itemId} onChange={(e: any) => setItemId(e.target.value)} placeholder="Enter item ID" />
+              <input
+                ref={itemInputRef}
+                value={itemId}
+                onChange={(e: any) => {
+                  setItemId(e.target.value);
+                  fetchPreview();
+                }}
+                placeholder="Enter item ID"
+                className="w-full p-2 border rounded"
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input type="number" min={1} value={quantity} onChange={(e: any) => setQuantity(Number(e.target.value) || 1)} />
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e: any) => setQuantity(Number(e.target.value) || 1)}
+                  className="w-16 text-center border rounded p-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => q + 1)}
+                  className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             <div className="flex space-x-2">
-              <Button onClick={fetchPreview} disabled={loadingPreview}>{loadingPreview ? "Loading..." : "Preview"}</Button>
-              <Button onClick={handleAdd} disabled={adding}>{adding ? "Adding..." : "Add to order"}</Button>
-              <Button onClick={onClose} variant="ghost">Cancel</Button>
+              <Button onClick={fetchPreview} disabled={loadingPreview}>
+                {loadingPreview ? "Loading..." : "Preview"}
+              </Button>
+              <Button onClick={handleAdd} disabled={adding}>
+                {adding ? "Adding..." : "Add to order"}
+              </Button>
+              <Button onClick={onClose} variant="ghost">
+                Cancel
+              </Button>
             </div>
 
             {error && <div className="text-red-500 text-sm">{error}</div>}
@@ -414,10 +421,14 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
             {preview && (
               <div className="mt-4 bg-gray-50 p-3 rounded">
                 <div className="flex items-center space-x-3">
-                  {preview.image && <img src={preview.image} alt={preview.name} className="w-14 h-14 object-cover rounded" />}
+                  {preview.image && (
+                    <img src={preview.image} alt={preview.name} className="w-14 h-14 object-cover rounded" />
+                  )}
                   <div>
                     <div className="font-semibold">{preview.name}</div>
-                    <div className="text-sm">₹{preview.price} • ID: {preview.id ?? preview._id ?? itemId}</div>
+                    <div className="text-sm">
+                      ₹{preview.price} • ID: {preview.id ?? preview._id ?? itemId}
+                    </div>
                     <div className="text-sm text-gray-600">Subtotal: ₹{(preview.price || 0) * quantity}</div>
                   </div>
                 </div>
@@ -439,200 +450,6 @@ interface EditedItem {
   quantity: number;
 }
 
-export function OrderDetailPage({
-  order,
-  onBack,
-  OpenModel,
-  orderIndex,
-  orders,
-  updateOrder,
-}: {
-  order: Order;
-  orderIndex: number
-  onBack: () => void;
-  orders: Order[];
-  OpenModel: (arg0: boolean) => void;
-  updateOrder: () => void;
-}) {
-  const [items, setItems] = useState(order.items as any[]);
-  const [editedItems, setEditedItems] = useState<EditedItem[]>([]);
-  const [totalDelta, setTotalDelta] = useState(0);
-
-  // Keep items in sync if order prop changes (e.g., from socket refresh)
-  useEffect(() => {
-    setItems(order.items as any[]);
-  }, [order.items]);
-
-  const updateQty = useCallback(
-    (id: number, delta: number, index: number) => {
-      if (items[index].status !== "pending") {
-        return alert("You can only update unprepared items");
-      }
-
-      setEditedItems((prev) => {
-        const existingIndex = prev.findIndex((i) => i.id === id);
-        let updated = [...prev];
-
-        if (existingIndex >= 0) {
-          const newQty = Math.max(
-            1,
-            updated[existingIndex].quantity + delta
-          );
-          setTotalDelta(
-            (curr) =>
-              curr +
-              (newQty - updated[existingIndex].quantity) *
-              (items[index].price || 0)
-          );
-          updated[existingIndex] = { ...updated[existingIndex], quantity: newQty };
-        } else {
-          setTotalDelta((curr) => curr + delta * (items[index].price || 0));
-          updated.push({ id, quantity: (items[index].quantity || 0) + delta });
-        }
-
-        return updated;
-      });
-    },
-    [items]
-  );
-
-  const handleSave = async () => {
-    try {
-      await ordersAPI.updateItems(order.id as string, editedItems);
-      onBack();
-    } catch (err) {
-      console.error("Failed to save changes:", err);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Header2 />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          className="mb-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Orders
-        </Button>
-
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Order #{order.orderNumber}
-            </h1>
-            <div className="flex items-center gap-4 text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span>Table {order.tableNumber}</span>
-            </div>
-          </div>
-          <StatusBadge status={order.status} />
-        </div>
-
-        <div className="space-y-4 mb-8">
-          {orders[orderIndex].items.map((item: any, i: number) => {
-            const edited = editedItems.find((e) => e.id === (item.id as number));
-            const qty = edited?.quantity ?? item.quantity;
-            return (
-              <Card
-                key={item.id ?? `${item.name}-${i}`}
-                className="border-0 shadow-md hover:shadow-lg transition-shadow"
-              >
-                <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      {item.name}
-                    </h3>
-                    <p className="text-gray-700">
-                      ₹{item.price} × {qty} ={" "}
-                      <span className="font-semibold">
-                        ₹{(item.price || 0) * (qty || 0)}
-                      </span>
-                    </p>
-                    <div className="mt-1">
-                      <StatusBadge status={item.status} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => updateQty(item.id as number, -1, i)}
-                      className="h-10 w-10 rounded-full hover:bg-red-50 hover:border-red-200"
-                      disabled={((qty ?? 1) <= 1) && (order.status === 'cancelled' || order.status === 'completed')}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </Button>
-                    <span className="px-4 py-2 font-bold text-lg min-w-[3rem] text-center">
-                      {qty}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      disabled={order.status === 'cancelled' || order.status === 'completed'}
-                      onClick={() => updateQty(item.id as number, 1, i)}
-                      className="h-10 w-10 rounded-full hover:bg-green-50 hover:border-green-200"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        <Card className="border-0 shadow-lg">
-          <CardContent className="p-6 flex flex-col sm:flex-row justify-between items-center gap-6">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Total Amount</p>
-              <p className="text-3xl font-bold text-gray-900">
-                ₹{(order.totalAmount || 0) + (totalDelta || 0)}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                variant="outline"
-                onClick={() => { updateOrder(order.id, 'cancelled') }}
-                disabled={order.status === 'cancelled' || order.status === 'completed'}
-                className="text-red-600 border-red-200 hover:bg-red-50 px-6"
-              >
-                <XCircle className="w-4 h-4 mr-2" /> Cancel
-              </Button>
-              <Button
-                variant="outline"
-                disabled={order.status === 'cancelled' || order.status === 'completed'}
-                onClick={() => { updateOrder(order.id, 'completed') }}
-                className="text-green-600 border-green-200 hover:bg-green-50 px-6"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" /> Complete
-              </Button>
-              {editedItems.length > 0 && (
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 px-6"
-                  onClick={handleSave}
-                >
-                  Save Changes
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => { OpenModel(true) }}
-                disabled={order.status === 'cancelled' || order.status === 'completed'}
-                className="text-green-600 border-green-200 hover:bg-green-50 px-6"
-              >
-                add new item
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 /* ---------------- ROOT WITH SOCKET + TOASTS ---------------- */
 export default function OrdersWrapper() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -640,6 +457,7 @@ export default function OrdersWrapper() {
   const [orderIndex, setOrderIndex] = useState<number>();
   const prevOrdersRef = useRef<Order[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
 
   const [orderId, setOrderId] = useState<number>();
   const [isOpen, setIsOpen] = useState(false);
@@ -652,8 +470,20 @@ export default function OrdersWrapper() {
 
   const { toasts, push, remove } = useToasts();
 
-  const SOCKET_URL = (api.defaults.baseURL as string) || "http://localhost:3000";
+  const SOCKET_URL = (api.defaults.baseURL as string);
 
+    useEffect(() => {
+      const fetchMenu = async () => {
+        try {
+          const data = await menuAPI.getAll();
+          setMenu(data);
+        } catch (error) {
+          console.error("Failed to load menu:", error);
+        }
+      };
+  
+      fetchMenu();
+    }, []);
   // initial load
   useEffect(() => {
     ordersAPI
@@ -797,18 +627,9 @@ export default function OrdersWrapper() {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onAdded={handleItemAdded}
+        menu={menu}
       />
 
-      {selectedOrder ? (
-        <OrderDetailPage
-          order={selectedOrder}
-          onBack={() => setSelectedOrder(null)}
-          OpenModel={setIsOpen}
-          updateOrder={OrderStatusUpdate}
-          orderIndex={orderIndex as number}
-          orders={orders}
-        />
-      ) : (
         <OrdersPage
           onViewOrder={setIsOpen}
           updateOrder={OrderStatusUpdate}
@@ -816,7 +637,6 @@ export default function OrdersWrapper() {
           setIndex={(i) => setOrderIndex(i)}
           setOrderId={setOrderId}
         />
-      )}
     </>
   );
 }
