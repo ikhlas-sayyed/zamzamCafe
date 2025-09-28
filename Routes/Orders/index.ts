@@ -572,9 +572,15 @@ router.patch('/:id/items/update', authenticateToken, authorizeRole(['waiter', 'a
     if (!order?.id) {
       return res.status(404).json({ error: 'Order itmes not found' });
     }
-    if (order.status === 'ready') {
-      return res.status(502).json({ error: "can't changes qty of ready items" });
-    }
+    // if (order.status === 'ready') {
+    //   return res.status(502).json({ error: "can't changes qty of ready items" });
+    // }
+    if(parseInt(updates[i].quantity)==0){
+      await prisma.orderItem.delete({
+        where:{id:parseInt(updates[i].id as string)}
+      })
+      totalAmount = ((order.price * updates[i].quantity) - (order.price * order.quantity)) + totalAmount
+    }else{
     totalAmount = ((order.price * updates[i].quantity) - (order.price * order.quantity)) + totalAmount
     const update_items = await prisma.orderItem.update({
       where: { id: parseInt(updates[i].id as string) },
@@ -582,6 +588,7 @@ router.patch('/:id/items/update', authenticateToken, authorizeRole(['waiter', 'a
         quantity: updates[i].quantity
       }
     })
+  }
 
   }
 

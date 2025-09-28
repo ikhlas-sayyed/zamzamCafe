@@ -18,6 +18,9 @@ import {
   XCircle,
   Eye,
   ArrowLeft,
+  Edit3,
+  Save,
+  Trash2,
 } from "lucide-react";
 import { type Order } from "~/types";
 import { menuAPI, ordersAPI } from "~/services/api";
@@ -56,6 +59,57 @@ function Toasts({ toasts, onClose }: { toasts: Toast[]; onClose: (id: string) =>
           {t.message}
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ---------------- CONFIRMATION MODAL ---------------- */
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText: string;
+  confirmColor?: string;
+}
+
+function ConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText,
+  confirmColor = "bg-red-600 hover:bg-red-700"
+}: ConfirmationModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
+      <Card className="max-w-md w-full">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+            <p className="text-gray-600 mb-6">{message}</p>
+            <div className="flex gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={onClose}
+                className="px-6"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={onConfirm}
+                className={`px-6 text-white ${confirmColor}`}
+              >
+                {confirmText}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -105,23 +159,123 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/* ---------------- EDITED ITEM INTERFACE ---------------- */
+interface EditedItem {
+  id: number;
+  quantity: number;
+}
+
 /* ---------------- ORDERS PAGE ---------------- */
 export function OrdersPage({
   onViewOrder,
   orders,
   setIndex,
   setOrderId,
-  updateOrder
+  updateOrder,
+  updateItems,
+  push
 }: {
   onViewOrder: (order: Order) => void;
   orders: Order[];
   setIndex: (i: number) => void;
   setOrderId: (arg0: number) => void;
-  updateOrder: () => void;
+  updateOrder: (orderId: number, status: string) => void;
+  updateItems: (orderId: string, items: EditedItem[]) => Promise<void>;
+  push: (message: string) => void;
 }) {
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editedItems, setEditedItems] = useState<{[key: string]: number}>({});
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    orderId?: number;
+    action?: 'complete' | 'cancel';
+  }>({ isOpen: false });
+
+  const handleEditToggle = (orderId: number) => {
+    if (editingOrderId === orderId) {
+      // Cancel editing
+      setEditingOrderId(null);
+      setEditedItems({});
+    } else {
+      // Start editing
+      setEditingOrderId(orderId);
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        const initial: {[key: string]: number} = {};
+        order.items.forEach((item: any) => {
+          const key = `${orderId}-${item.id || item.name}`;
+          initial[key] = item.quantity;
+        });
+        setEditedItems(initial);
+      }
+    }
+  };
+
+  const handleQuantityChange = (orderId: number, itemId: string, newQuantity: number) => {
+    const key = `${orderId}-${itemId}`;
+    setEditedItems(prev => ({
+      ...prev,
+      [key]: Math.max(0, newQuantity)
+    }));
+  };
+
+  const handleSaveChanges = async (orderId: number) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const updates: EditedItem[] = [];
+      
+      order.items.forEach((item: any) => {
+        const key = `${orderId}-${item.id || item.name}`;
+        const newQuantity = editedItems[key];
+        if (newQuantity !== undefined) {
+          updates.push({
+            id: item.id || item.menuItemId,
+            quantity: newQuantity
+          });
+        }
+      });
+
+      await updateItems(orderId.toString(), updates);
+      setEditingOrderId(null);
+      setEditedItems({});
+      push("Order items updated successfully!");
+    } catch (error) {
+      console.error("Failed to update items:", error);
+      push("Failed to update order items");
+    }
+  };
+
+  const handleOrderAction = (orderId: number, action: 'complete' | 'cancel') => {
+    setConfirmModal({
+      isOpen: true,
+      orderId,
+      action
+    });
+  };
+
+  const handleConfirmAction = () => {
+    if (confirmModal.orderId && confirmModal.action) {
+      const status = confirmModal.action === 'complete' ? 'completed' : 'cancelled';
+      updateOrder(confirmModal.orderId, status);
+    }
+    setConfirmModal({ isOpen: false });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header2 activeOrders={orders.length} />
+      
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false })}
+        onConfirm={handleConfirmAction}
+        title={`${confirmModal.action === 'complete' ? 'Complete' : 'Cancel'} Order`}
+        message={`Are you sure you want to ${confirmModal.action} this order? This action cannot be undone.`}
+        confirmText={confirmModal.action === 'complete' ? 'Complete Order' : 'Cancel Order'}
+        confirmColor={confirmModal.action === 'complete' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
@@ -133,103 +287,166 @@ export function OrdersPage({
 
         {orders.length > 0 ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {orders.map((order, index) => (
-              <Card
-                key={order.id}
-                className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-md"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg font-bold text-gray-900">
-                        Table #{order.tableNumber}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
-                        <MapPin className="w-4 h-4" />
-                        <span>Order {order.orderNumber}</span>
+            {orders.map((order, index) => {
+              const isEditing = editingOrderId === order.id;
+              
+              return (
+                <Card
+                  key={order.id}
+                  className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-md"
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg font-bold text-gray-900">
+                          Table #{order.tableNumber}
+                        </CardTitle>
+                        <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
+                          <MapPin className="w-4 h-4" />
+                          <span>Order {order.orderNumber}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={order.status} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditToggle(order.id)}
+                          disabled={order.status === 'cancelled' || order.status === 'completed'}
+                          className="p-2"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <StatusBadge status={order.status} />
-                  </div>
-                </CardHeader>
-                <ul className="space-y-2 px-4">
-                  {order.items.map((o, i) => {
-                    let statusStyles = "bg-gray-400 text-white"; // default pending
-                    let statusLetter = "P";
+                  </CardHeader>
+                  
+                  <ul className="space-y-2 px-4">
+                    {order.items.map((o: any, i) => {
+                      const key = `${order.id}-${o.id || o.name}`;
+                      const currentQuantity = isEditing ? editedItems[key] || o.quantity : o.quantity;
+                      
+                      let statusStyles = "bg-gray-400 text-white"; // default pending
+                      let statusLetter = "P";
 
-                    if (o.status === "ready") {
-                      statusStyles = "bg-green-500 text-white";
-                      statusLetter = "R";
-                    } else if (o.status === "preparing") {
-                      statusStyles = "bg-yellow-500 text-white";
-                      statusLetter = "P"; // still P but yellow
-                    }
+                      if (o.status === "ready") {
+                        statusStyles = "bg-green-500 text-white";
+                        statusLetter = "R";
+                      } else if (o.status === "preparing") {
+                        statusStyles = "bg-yellow-500 text-white";
+                        statusLetter = "P"; // still P but yellow
+                      }
 
-                    return (
-                      <li key={i} className="flex items-center gap-2 font-semibold text-gray-800">
-                        {/* Status Circle */}
-                        <span
-                          className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${statusStyles}`}
-                        >
-                          {statusLetter}
-                        </span>
+                      return (
+                        <li key={i} className="flex items-center gap-2 font-semibold text-gray-800">
+                          {/* Status Circle */}
+                          <span
+                            className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${statusStyles}`}
+                          >
+                            {statusLetter}
+                          </span>
 
-                        {/* Item name + qty */}
-                        {o.name} x {o.quantity}
-                      </li>
-                    );
-                  })}
-                </ul>
+                          {/* Item name */}
+                          <span className="flex-1">{o.name}</span>
 
+                          {/* Quantity controls or display */}
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleQuantityChange(order.id, o.id || o.name, currentQuantity - 1)}
+                                className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-8 text-center text-sm">{currentQuantity}</span>
+                              <button
+                                onClick={() => handleQuantityChange(order.id, o.id || o.name, currentQuantity + 1)}
+                                className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                              {currentQuantity === 0 && (
+                                <Trash2 className="w-4 h-4 text-red-500 ml-1" />
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm">x {currentQuantity}</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
 
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center py-3 border-t border-gray-100">
+                      <p className="text-2xl font-bold text-gray-900">
+                        ₹{order.totalAmount}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {order.items.length} items
+                      </p>
+                    </div>
 
+                    <p><b>Note:</b> {order.notes}</p>
 
-
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-t border-gray-100">
-                    <p className="text-2xl font-bold text-gray-900">
-                      ₹{order.totalAmount}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {order.items.length} items
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      disabled={order.status === 'cancelled' || order.status === 'completed' || order.status === 'ready' || order.status === 'preparing'}
-                      onClick={() => { updateOrder(order.id, 'cancelled') }}
-                      size="sm"
-                      className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" /> Cancel
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={order.status === 'cancelled' || order.status === 'completed'}
-                      size="sm"
-                      onClick={() => { updateOrder(order.id, 'completed') }}
-                      className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" /> Complete
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => {
-                        onViewOrder(order);
-                        setIndex(index);
-                        setOrderId(order.id);
-                      }}
-                    >
-                      <Eye className="w-4 h-4 mr-2" /> add item
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="flex gap-2">
+                      {isEditing ? (
+                        <>
+                          <Button
+                            onClick={() => handleSaveChanges(order.id)}
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700"
+                          >
+                            <Save className="w-4 h-4 mr-2" /> Save Changes
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleEditToggle(order.id)}
+                            size="sm"
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            disabled={order.status === 'cancelled' || order.status === 'completed' || order.status === 'ready' || order.status === 'preparing'}
+                            onClick={() => handleOrderAction(order.id, 'cancel')}
+                            size="sm"
+                            className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <XCircle className="w-4 h-4 mr-2" /> Cancel
+                          </Button>
+                          <Button
+                            variant="outline"
+                            disabled={order.status === 'cancelled' || order.status === 'completed'}
+                            size="sm"
+                            onClick={() => handleOrderAction(order.id, 'complete')}
+                            className="flex-1 text-green-600 border-green-200 hover:bg-green-50"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" /> Complete
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            onClick={() => {
+                              onViewOrder(order);
+                              setIndex(index);
+                              setOrderId(order.id);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" /> add item
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-12">
@@ -247,27 +464,13 @@ export function OrdersPage({
   );
 }
 
-
-
 interface Props {
   orderId: string;
   isOpen: boolean;
   onClose: () => void;
-  onAdded?: (addedItem: any) => void; // optional callback to let parent update UI
+  onAdded?: (addedItem: any) => void;
+  menu: MenuItem[];
 }
-
-/**
- * AddItemToOrderModal
- * - Adds an item to an existing order by ITEM ID (no selection list).
- * - Uses ordersAPI.addItem(orderId, items: MenuItem) to add the item.
- * - Attempts to preview the MenuItem by checking menuAPI.getById (if available) or falling back to menuAPI.getAll().
- *
- * Props:
- *  - orderId: the existing order's id (string) — required
- *  - isOpen: whether modal is visible
- *  - onClose: close handler
- *  - onAdded: optional callback invoked with the payload that was sent after success
- */
 
 const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdded, menu }) => {
   const [itemId, setItemId] = useState<string>("");
@@ -441,15 +644,6 @@ const AddItemToOrderModal: React.FC<Props> = ({ orderId, isOpen, onClose, onAdde
   );
 };
 
-// export default AddItemToOrderModal;
-
-
-/* ---------------- ORDER DETAILS ---------------- */
-interface EditedItem {
-  id: number;
-  quantity: number;
-}
-
 /* ---------------- ROOT WITH SOCKET + TOASTS ---------------- */
 export default function OrdersWrapper() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -464,33 +658,35 @@ export default function OrdersWrapper() {
 
   // Optional callback: update your UI after adding an item
   const handleItemAdded = (item: any) => {
-    orders[orderIndex].items.push(item)
+    if (orderIndex !== undefined) {
+      orders[orderIndex].items.push(item);
+    }
   };
-
 
   const { toasts, push, remove } = useToasts();
 
   const SOCKET_URL = (api.defaults.baseURL as string);
 
-    useEffect(() => {
-      const fetchMenu = async () => {
-        try {
-          const data = await menuAPI.getAll();
-          setMenu(data);
-        } catch (error) {
-          console.error("Failed to load menu:", error);
-        }
-      };
-  
-      fetchMenu();
-    }, []);
+  useEffect(() => {
+    const fetchMenu = async () => {
+      try {
+        const data = await menuAPI.getAll();
+        setMenu(data);
+      } catch (error) {
+        console.error("Failed to load menu:", error);
+      }
+    };
+
+    fetchMenu();
+  }, []);
+
   // initial load
   useEffect(() => {
     ordersAPI
       .getAll()
       .then((res) => {
         setOrders(res.data);
-        console.log(res.data)
+        console.log(res.data);
         prevOrdersRef.current = res.data;
       })
       .catch((err) => console.error("Failed to load orders:", err));
@@ -575,16 +771,29 @@ export default function OrdersWrapper() {
   );
 
   // socket setup
-  async function OrderStatusUpdate(orderId, status) {
+  async function OrderStatusUpdate(orderId: number, status: string) {
     try {
-      ordersAPI.updateStatus(orderId, status)
-    } catch {
-      (e: any) => {
-        console.log(e);
-        push('Order ' + status + ' failed');
-      }
+      await ordersAPI.updateStatus(orderId, status);
+    } catch (e: any) {
+      console.log(e);
+      push('Order ' + status + ' failed');
     }
   }
+
+  // Update items function
+  const updateItems = async (orderId: string, items: EditedItem[]) => {
+    try {
+      await ordersAPI.updateItems(orderId, items);
+      // Refresh orders after update
+      const res = await ordersAPI.getAll();
+      setOrders(res.data);
+      prevOrdersRef.current = res.data;
+    } catch (error) {
+      console.error("Failed to update items:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const s = io(SOCKET_URL, {
       transports: ["websocket"],
@@ -606,7 +815,7 @@ export default function OrdersWrapper() {
     });
 
     // Optional: if you want to react to new order or item-added events in waiter UI,
-    // you can enable these too. Not required for “status updates” so keeping off.
+    // you can enable these too. Not required for "status updates" so keeping off.
     // s.on("newOrder", async () => await refreshAndDiff());
     // s.on("newItemAddtoOrder", async () => await refreshAndDiff());
 
@@ -616,27 +825,29 @@ export default function OrdersWrapper() {
     };
   }, [SOCKET_URL, refreshAndDiff]);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   return (
     <>
       <Header navigate={navigate} />
       <Toasts toasts={toasts} onClose={remove} />
 
       <AddItemToOrderModal
-        orderId={orderId}
+        orderId={orderId?.toString() || ""}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         onAdded={handleItemAdded}
         menu={menu}
       />
 
-        <OrdersPage
-          onViewOrder={setIsOpen}
-          updateOrder={OrderStatusUpdate}
-          orders={orders}
-          setIndex={(i) => setOrderIndex(i)}
-          setOrderId={setOrderId}
-        />
+      <OrdersPage
+        onViewOrder={() => setIsOpen(true)}
+        updateOrder={OrderStatusUpdate}
+        updateItems={updateItems}
+        orders={orders}
+        setIndex={(i) => setOrderIndex(i)}
+        setOrderId={setOrderId}
+        push={push}
+      />
     </>
   );
 }

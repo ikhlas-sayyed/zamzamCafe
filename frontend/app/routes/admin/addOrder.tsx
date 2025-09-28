@@ -6,10 +6,10 @@ import { Input } from "~/components/ui/input";
 import api, { menuAPI, ordersAPI } from "~/services/api";
 import type { MenuItem } from "~/types";
 import MenuItems from "~/components/waiter/MenuItem";
+import Header from "./Header";
 import CurrentOrderItem from "~/components/waiter/CurrentOrderItem";
 import { io, type Socket } from "socket.io-client";
 import { useNavigate } from "react-router";
-import Header from "./Header";
 
 interface orderItems {
   menuItemId: string;
@@ -66,8 +66,13 @@ const Menu: React.FC = () => {
   const [inputMethod, setInputMethod] = useState("id");
   const [current_itemId, setCurrentItemId] = useState<number>();
   const [itemQuantity, setItemQuantity] = useState(1);
+  const [note,set_note] = useState("");
   const [orderItems, setOrderItems] = useState<orderItems[]>([]);
   const [placing, setPlacing] = useState(false);
+
+  // 🔎 New state for search and category filter
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
 
   const socketRef = useRef<Socket | null>(null);
   const SOCKET_URL = (api.defaults.baseURL as string) || "http://localhost:3000";
@@ -77,16 +82,14 @@ const Menu: React.FC = () => {
   const tableRef = useRef<HTMLInputElement>(null);
   const itemRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const noteRef  = useRef<HTMLInputElement>(null);
 
-  // Focus table input on page load
   useEffect(() => {
     tableRef.current?.focus();
   }, []);
 
-  // Keyboard handling
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (current_itemId==null||current_itemId=='')&&document.activeElement!==tableRef.current) {
-      // Shift + Enter -> submit order
+    if (e.key === "Enter" && document.activeElement==itemRef.current &&current_itemId==null) {
       placeOrder();
       setTableNumber(undefined);
       setCurrentItemId(undefined);
@@ -99,14 +102,11 @@ const Menu: React.FC = () => {
         qtyRef.current?.focus();
       } else if (document.activeElement === qtyRef.current) {
         addItemById();
-        setCurrentItemId(undefined);
-        setItemQuantity(1);
-        itemRef.current?.focus();
+        itemRef.current?.focus()
       }
     }
   };
 
-  // Load menu when component mounts
   useEffect(() => {
     const fetchMenu = async () => {
       try {
@@ -122,38 +122,6 @@ const Menu: React.FC = () => {
 
     fetchMenu();
   }, []);
-
-  // Toast when waiterId is available
-  useEffect(() => {
-    if (waiterId !== undefined) {
-      console.log(waiterId)
-    }
-  }, [waiterId]);
-
-  // Socket connection
-  useEffect(() => {
-    const s = io(SOCKET_URL, { transports: ["websocket"] });
-    socketRef.current = s;
-
-    s.on("OrderStatus", (payload: { waiterId: number; status: string; orderNumber: string }) => {
-      if (payload.waiterId === waiterId) {
-        push(`Order #${payload.orderNumber} is ${payload.status}`);
-      }
-    });
-
-    s.on(
-      "ItemStatus",
-      (payload: { waiterId: number; status: string; orderNumber: string; name: string }) => {
-        if (payload.waiterId === waiterId) {
-          push(`Order #${payload.orderNumber} - ${payload.name} is ${payload.status}`);
-        }
-      }
-    );
-
-    return () => {
-      s.disconnect();
-    };
-  }, [SOCKET_URL, waiterId, push]);
 
   const addOrderItem = useCallback(
     (itemId: string, itemQty: number, name?: string, price?: number, image?: string) => {
@@ -198,7 +166,21 @@ const Menu: React.FC = () => {
         previewItem.price,
         previewItem.image,
       );
+      // 🔄 Reset input after adding
+      setCurrentItemId(undefined);
+      setItemQuantity(1);
+      itemRef.current!.value = "";
     }
+  };
+
+  const updateQty = (index: number, delta: number) => {
+    setOrderItems((items) =>
+      items
+        .map((it, i) =>
+          i === index ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it
+        )
+        .filter((it) => it.quantity > 0)
+    );
   };
 
   const removeFromCurrentOrder = (i: number) => {
@@ -210,15 +192,16 @@ const Menu: React.FC = () => {
   };
 
   const placeOrder = async () => {
-    if (!tableNumber || orderItems.length >-1) {
-      // push("Please enter table number and add at least one item.");
-      // return;
+    if (!tableNumber || orderItems.length === 0) {
       setTableNumber(0);
     }
     setPlacing(true);
     try {
-      await ordersAPI.create({ items: orderItems, tableNumber, notes: "" });
+      await ordersAPI.create({ items: orderItems, tableNumber, notes: note });
       clearOrder();
+      setCurrentItemId(null);
+      setItemQuantity(1);
+      set_note("")
       push("Order placed!");
     } catch (error) {
       console.error("Failed to place order:", error);
@@ -231,17 +214,26 @@ const Menu: React.FC = () => {
 
   const navigate = useNavigate();
 
+  // 🔎 Filtered menu
+  const filteredMenu = useMemo(() => {
+    return menu.filter(
+      (item) =>
+        (category === "all" || item.category === category) &&
+        item.name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [menu, search, category]);
+
   return (
     <>
-      <div className="min-h-screen flex bg-gray-100">
-        <Header navigate={navigate} />
+         <div className="min-h-screen flex bg-gray-100">
+           <Header navigate={navigate} />
       <Toasts toasts={toasts} onClose={remove} />
 
       <div className="container mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-800 mb-4">Create New Order</h2>
 
-          {/* Customer Info */}
+          {/* Table input */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Table Number</label>
@@ -257,25 +249,23 @@ const Menu: React.FC = () => {
             </div>
           </div>
 
-          {/* Input Method Toggle */}
+          {/* Input method toggle */}
           <div className="flex space-x-4 mb-6">
             <button
               onClick={() => setInputMethod("menu")}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                inputMethod === "menu"
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "menu"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
+                }`}
             >
               Menu Selection
             </button>
             <button
               onClick={() => setInputMethod("id")}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                inputMethod === "id"
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${inputMethod === "id"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
+                }`}
             >
               ID Entry
             </button>
@@ -290,26 +280,48 @@ const Menu: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Item ID</label>
                   <input
                     ref={itemRef}
-                    type="number"
+                    type="text"   // <-- changed from number to text
                     value={current_itemId ?? ""}
-                    onChange={(e) => itemchng(e.target.value)}
+                    onChange={(e) => {
+                      // allow only digits
+                      const val = e.target.value.replace(/\D/g, "");
+                      itemchng(val);
+                    }}
                     onKeyDown={handleKeyDown}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter ID (1-12)"
+                    placeholder="Enter ID"
                   />
+
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                  <input
-                    ref={qtyRef}
-                    type="number"
-                    min="1"
-                    value={itemQuantity}
-                    onChange={(e) => setItemQuantity(parseInt(e.target.value) || 1)}
-                    onKeyDown={handleKeyDown}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  <div className="flex items-center border rounded-lg">
+                    <button
+                      type="button"
+                      className="px-3 py-2 bg-gray-200 rounded-l-lg"
+                      onClick={() => setItemQuantity(Math.max(1, itemQuantity - 1))}
+                    >
+                      -
+                    </button>
+                    <input
+                      ref={qtyRef}
+                      type="number"
+                      value={itemQuantity}
+                      onChange={(e) => setItemQuantity(parseInt(e.target.value))}
+                      onKeyDown={handleKeyDown}
+                      className="w-full text-center p-3 border-0 focus:ring-0"
+                    />
+                    <button
+                      type="button"
+                      className="px-3 py-2 bg-gray-200 rounded-r-lg"
+                      onClick={() => setItemQuantity(itemQuantity + 1)}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
+
                 <div className="flex items-end">
                   <button
                     onClick={addItemById}
@@ -319,6 +331,7 @@ const Menu: React.FC = () => {
                   </button>
                 </div>
               </div>
+
               {previewItem && (
                 <div className="mt-4">
                   <div className="bg-white border rounded-lg p-3 flex items-center space-x-3">
@@ -338,7 +351,8 @@ const Menu: React.FC = () => {
             </div>
           )}
 
-          {/* Current Order */}
+
+          {/* Current order */}
           {orderItems.length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -349,14 +363,48 @@ const Menu: React.FC = () => {
               </div>
               <div className="space-y-3">
                 {orderItems.map((item, index) => (
-                  <CurrentOrderItem
+                  <div
                     key={item.menuItemId}
-                    item={item}
-                    index={index}
-                    onRemove={removeFromCurrentOrder}
-                  />
+                    className="flex items-center justify-between border p-3 rounded-lg"
+                  >
+                    <div>
+                      <h4 className="font-semibold">{item.name}</h4>
+                      <p className="text-sm text-gray-500">₹{item.price}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded"
+                        onClick={() => updateQty(index, -1)}
+                      >
+                        -
+                      </button>
+                      <span>{item.quantity}</span>
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded"
+                        onClick={() => updateQty(index, +1)}
+                      >
+                        +
+                      </button>
+                      <button
+                        className="ml-2 text-red-500"
+                        onClick={() => removeFromCurrentOrder(index)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Note</label>
+              <input
+                ref={noteRef}
+                value={note ?? ""}
+                onChange={(e) => set_note((e.target.value))}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="enter note for Order"
+              />
+            </div>
               <div className="border-t pt-4 mt-4">
                 <div className="flex justify-between items-center text-xl font-bold">
                   <span>Total</span>
@@ -373,12 +421,38 @@ const Menu: React.FC = () => {
             </div>
           )}
 
-          {/* Menu Selection */}
+          {/* Menu selection */}
           {inputMethod === "menu" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-              {menu.map((item) => (
-                <MenuItems key={item.id} item={item} additems={addOrderItem} />
-              ))}
+            <div>
+              {/* 🔎 Search and Category Filter */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
+                <input
+                  type="text"
+                  placeholder="Search menu..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="flex-1 p-2 border border-gray-300 rounded-lg"
+                />
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="p-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="all">All</option>
+                  {[...new Set(menu.map((m) => m.category))].map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 🔲 Grid 2 per row on mobile */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+                {filteredMenu.map((item) => (
+                  <MenuItems key={item.id} item={item} additems={addOrderItem} />
+                ))}
+              </div>
             </div>
           )}
         </div>
