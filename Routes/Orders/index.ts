@@ -560,9 +560,9 @@ router.patch('/:id/items/update', authenticateToken, authorizeRole(['waiter', 'a
   //   console.log(req.body)
   //   return res.status(400).json({ errors: errors.array() });
   // }
-
   const { id } = req.params;
-  const { updates } = req.body;
+  const { updates, tableNumber } = req.body;
+
   const user = (req as any).user
   let totalAmount = 0;
   for (let i = 0; i < updates.length; i++) {
@@ -598,6 +598,7 @@ router.patch('/:id/items/update', authenticateToken, authorizeRole(['waiter', 'a
       totalAmount: {
         increment: totalAmount,
       },
+      tableNumber, 
     },
   });
 

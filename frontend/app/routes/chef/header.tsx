@@ -29,6 +29,17 @@ const Header = ({ currentPage='' ,navigate}) => (
             {/* <Plus className="w-5 h-5" /> */}
             <span>Menu</span>
           </button>
+                    <button
+           onClick={() => navigate('/chef/history')}
+            className={`rounded-lg px-4 py-2 transition-all duration-300 flex items-center space-x-2 ${
+              currentPage === 'new-order' 
+                ? 'bg-green-600' 
+                : 'bg-green-500 hover:bg-green-600'
+            }`}
+          >
+            {/* <Plus className="w-5 h-5" /> */}
+            <span>History</span>
+          </button>
         </div>
       </div>
     </div>

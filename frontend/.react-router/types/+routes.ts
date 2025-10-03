@@ -49,12 +49,15 @@ type Pages = {
   "/chef/menu": {
     params: {};
   };
+  "/chef/history": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/login" | "/waiter" | "/waiter/orders" | "/chef" | "/admin" | "/admin/insights" | "/admin/menu" | "/admin/orders" | "/admin/addOrder" | "/admin/tables" | "/admin/users" | "/chef/menu";
+    page: "/" | "/login" | "/waiter" | "/waiter/orders" | "/chef" | "/admin" | "/admin/insights" | "/admin/menu" | "/admin/orders" | "/admin/addOrder" | "/admin/tables" | "/admin/users" | "/chef/menu" | "/chef/history";
   };
   "routes/home.tsx": {
     id: "routes/home";
@@ -107,5 +110,9 @@ type RouteFiles = {
   "routes/chef/menu.tsx": {
     id: "routes/chef/menu";
     page: "/chef/menu";
+  };
+  "routes/chef/history.tsx": {
+    id: "routes/chef/history";
+    page: "/chef/history";
   };
 };

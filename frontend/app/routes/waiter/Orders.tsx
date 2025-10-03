@@ -29,6 +29,7 @@ import { io, type Socket } from "socket.io-client";
 import type { MenuItem } from "~/types";
 import Header from "~/components/waiter/Header";
 import { useNavigate } from "react-router";
+import { set } from "zod";
 
 /* =============== Tiny Toasts (no library) =============== */
 type Toast = { id: string; message: string };
@@ -180,11 +181,12 @@ export function OrdersPage({
   setIndex: (i: number) => void;
   setOrderId: (arg0: number) => void;
   updateOrder: (orderId: number, status: string) => void;
-  updateItems: (orderId: string, items: EditedItem[]) => Promise<void>;
+  updateItems: (orderId: string,  items: EditedItem[],tableNumber: any) => Promise<void>;
   push: (message: string) => void;
 }) {
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
-  const [editedItems, setEditedItems] = useState<{[key: string]: number}>({});
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
+  const [editedItems, setEditedItems] = useState<{ [key: string]: number }>({});
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     orderId?: number;
@@ -201,7 +203,7 @@ export function OrdersPage({
       setEditingOrderId(orderId);
       const order = orders.find(o => o.id === orderId);
       if (order) {
-        const initial: {[key: string]: number} = {};
+        const initial: { [key: string]: number } = {};
         order.items.forEach((item: any) => {
           const key = `${orderId}-${item.id || item.name}`;
           initial[key] = item.quantity;
@@ -225,7 +227,7 @@ export function OrdersPage({
       if (!order) return;
 
       const updates: EditedItem[] = [];
-      
+
       order.items.forEach((item: any) => {
         const key = `${orderId}-${item.id || item.name}`;
         const newQuantity = editedItems[key];
@@ -237,7 +239,7 @@ export function OrdersPage({
         }
       });
 
-      await updateItems(orderId.toString(), updates);
+      await updateItems(orderId.toString(), updates, tableNumber);
       setEditingOrderId(null);
       setEditedItems({});
       push("Order items updated successfully!");
@@ -266,7 +268,7 @@ export function OrdersPage({
   return (
     <div className="min-h-screen bg-gray-50">
       <Header2 activeOrders={orders.length} />
-      
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ isOpen: false })}
@@ -289,7 +291,7 @@ export function OrdersPage({
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {orders.map((order, index) => {
               const isEditing = editingOrderId === order.id;
-              
+
               return (
                 <Card
                   key={order.id}
@@ -320,23 +322,22 @@ export function OrdersPage({
                       </div>
                     </div>
                   </CardHeader>
-                  
+
                   <ul className="space-y-2 px-4">
                     {order.items.map((o: any, i) => {
                       const key = `${order.id}-${o.id || o.name}`;
                       const currentQuantity = isEditing ? editedItems[key] || o.quantity : o.quantity;
-                      
-                      let statusStyles = "bg-gray-400 text-white"; // default pending
+
+                      let statusStyles = "bg-red-400 text-white"; // default pending
                       let statusLetter = "P";
 
                       if (o.status === "ready") {
                         statusStyles = "bg-green-500 text-white";
                         statusLetter = "R";
                       } else if (o.status === "preparing") {
-                        statusStyles = "bg-yellow-500 text-white";
+                        statusStyles = "bg-red-500 text-white";
                         statusLetter = "P"; // still P but yellow
                       }
-
                       return (
                         <li key={i} className="flex items-center gap-2 font-semibold text-gray-800">
                           {/* Status Circle */}
@@ -392,6 +393,20 @@ export function OrdersPage({
                     <div className="flex gap-2">
                       {isEditing ? (
                         <>
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="text-sm font-medium">Table No:</label>
+                            <input
+                              type="text"
+                              value={tableNumber ?? order.tableNumber} // use fallback if tableNumber is null/undefined
+                              onChange={(e) => {
+                                let val = e.target.value.toString()
+                                val = val.replace(/\D/g, "");
+                                setTableNumber(Number(val));
+                              }}
+                              className="border border-gray-300 rounded-md p-1 w-16"
+                            />
+                          </div>
+
                           <Button
                             onClick={() => handleSaveChanges(order.id)}
                             size="sm"
@@ -781,9 +796,9 @@ export default function OrdersWrapper() {
   }
 
   // Update items function
-  const updateItems = async (orderId: string, items: EditedItem[]) => {
+  const updateItems = async (orderId: string, items: EditedItem[], tableNumber: any) => {
     try {
-      await ordersAPI.updateItems(orderId, items);
+      await ordersAPI.updateItems(orderId, items, tableNumber );
       // Refresh orders after update
       const res = await ordersAPI.getAll();
       setOrders(res.data);

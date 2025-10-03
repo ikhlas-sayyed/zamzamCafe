@@ -163,9 +163,10 @@ export const ordersAPI = {
     return response.data.data!
   },
 
-  updateItems: async (id: string,items:edited_item[]): Promise<Order> => {
+  updateItems: async (id: string,items:edited_item[],tableNumber:any): Promise<Order> => {
     const response = await api.patch<ApiResponse<Order>>(`/orders/${id}/items/update`, { 
-       updates: items
+       updates: items,
+        tableNumber
     })
     return response.data.data!
   },

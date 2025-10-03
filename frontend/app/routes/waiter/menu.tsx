@@ -282,8 +282,8 @@ const Menu: React.FC = () => {
                     type="text"   // <-- changed from number to text
                     value={current_itemId ?? ""}
                     onChange={(e) => {
-                      // allow only digits
-                      const val = e.target.value.replace(/\D/g, "");
+                      let val = e.target.value.toString()
+                      val = val.replace(/\D/g, "");
                       itemchng(val);
                     }}
                     onKeyDown={handleKeyDown}

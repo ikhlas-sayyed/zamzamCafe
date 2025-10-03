@@ -13,5 +13,6 @@ export default [
     route('/admin/addOrder','routes/admin/addOrder.tsx'),
     route('/admin/tables','routes/admin/tables.tsx'),
     route('/admin/users','routes/admin/users.tsx'),
-    route('/chef/menu','routes/chef/menu.tsx')
+    route('/chef/menu','routes/chef/menu.tsx'),
+    route('/chef/history','routes/chef/history.tsx'),
 ] satisfies RouteConfig;
